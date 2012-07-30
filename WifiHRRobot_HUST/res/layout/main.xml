@@ -4,6 +4,11 @@
     android:layout_width="fill_parent"
     android:layout_height="fill_parent" >
 
+    <SurfaceView
+        android:id="@+id/SurfaceView_camera"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent" />
+
     <ImageView
         android:id="@+id/imageView_camera"
         android:layout_width= "fill_parent"

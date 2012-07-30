@@ -1,11 +1,14 @@
 package org.hustcse.wifirobot;
 
+import javax.security.auth.callback.Callback;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
@@ -13,10 +16,14 @@ import android.graphics.Canvas;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.os.PowerManager;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.Display;
 import android.view.KeyEvent;
@@ -25,6 +32,8 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup.LayoutParams;
@@ -40,7 +49,13 @@ import com.MobileAnarchy.Android.Widgets.Joystick.JoystickView;
 
 public class WifiRobotActivity extends Activity {
 	private static String TAG = "WifiHRRobot";
+	private static String VLC_VIDEO_ADDR = "http://192.168.0.10:8080";
+	private static String DIST_IPADDR = "192.168.0.10";
 	final static boolean D = true;
+	private SharedPreferences preferences;
+	MediaPlayer vlcmediaPlayer;
+	SurfaceView surface_vlc;
+	SurfaceHolder surfaceholder_vlc; 	
 	
 	Button btn_image;
 	Button btn_video;
@@ -52,6 +67,14 @@ public class WifiRobotActivity extends Activity {
 	private boolean follow_road_flag = false;
 	private boolean show_camera2LCD_flag = false;
 	private boolean need_lock_button = true; /*是否需要在进入巡线模式后让Button不可用*/
+
+	/*vlc video mode */
+	private boolean vlc_video_mode = false;
+	private String vlc_video_addr; 
+	private boolean vlc_video_flag = false;
+	private boolean player_sel = false;
+	
+	private String target_ipaddr ;
 	
 	short tcp_ctrl_code;
 	short tcp_data_length;
@@ -103,6 +126,15 @@ public class WifiRobotActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         
+        // Initialize preferences
+        preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        surface_vlc = (SurfaceView)findViewById(R.id.SurfaceView_camera);
+        surfaceholder_vlc = surface_vlc.getHolder();
+        surfaceholder_vlc.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        surfaceholder_vlc.addCallback(new SHCallback());
+        
+       // surface_vlc.setVisibility(View.INVISIBLE);
+        
         /*获取屏幕的宽度长度*/
         display = getWindowManager().getDefaultDisplay();
         screen_Orientation = display.getOrientation();
@@ -153,7 +185,7 @@ public class WifiRobotActivity extends Activity {
         udp_ctrl_obj = new udp_ctrl(getApplicationContext(), mHandler_UDP_MSG);
         mContext = getApplicationContext();
         
-        
+
         img_camera_bmp = Bitmap.createBitmap(img_width, img_height, img_cfg);
         //Bitmap bitmap_rgb = bitmap_cp.copy(img_cfg, true);
         //img_org = BitmapFactory.decodeResource(getResources(), R.drawable.grepscale);
@@ -172,6 +204,24 @@ public class WifiRobotActivity extends Activity {
         
     }
     
+    public class SHCallback implements SurfaceHolder.Callback{
+    	public void surfaceChanged(SurfaceHolder holder, int format, 
+                 int width, int height) {
+        }
+          public void surfaceCreated(SurfaceHolder holder) {
+              Log.v(TAG, "surfaceCreated");
+              try {
+//                  mMediaPlayer = new MediaPlayer();
+ //      mMediaPlayer.setDataSource(mPath);
+            	  vlcmediaPlayer = new MediaPlayer();
+                  vlcmediaPlayer.setDisplay(surfaceholder_vlc);
+ //                 mMediaPlayer.prepare();
+              } catch (Exception e) {
+                 Log.e(TAG, "error: " + e.getMessage());
+              }  
+    }
+        public void surfaceDestroyed(SurfaceHolder holder) {}
+    }
     @Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		MenuInflater inflater = getMenuInflater();
@@ -179,24 +229,40 @@ public class WifiRobotActivity extends Activity {
 		return true;
 	}
     
+    public void update_preference(){
+    	try {
+			vlc_video_addr = preferences.getString("vlcaddr", VLC_VIDEO_ADDR);
+			vlc_video_mode = preferences.getBoolean("vlcvideostate", false);
+			player_sel = preferences.getBoolean("playersel", false);
+		} catch (Exception e) {
+			Log.d(TAG,e.toString());
+		}
+    }
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
-		if (show_camera2LCD_flag){
-			disp_toast("正在动态显示摄像头图像到液晶,请先退出该模式,再进行操作!");
-			return true;
-		}
-		switch (item.getItemId()) {
-			case R.id.SetLCDClrScreen:
-				post_clr_screen_msg();
-				break;
-			case R.id.SetLCDString:
-				post_set_screen_with_string_msg();
-				break;
-			case R.id.SetLCDWithPic:
-				post_set_screen_with_pic_msg();
-				break;
-			default:
-				break;
+		if (item.getItemId() == R.id.Settings){
+			startActivity(new Intent(this, Preferences.class));
+		}else{
+			if (show_camera2LCD_flag){
+				disp_toast("正在动态显示摄像头图像到液晶,请先退出该模式,再进行操作!");
+				return true;
+			}
+			switch (item.getItemId()) {
+				case R.id.SetLCDClrScreen:
+					post_clr_screen_msg();
+					break;
+				case R.id.SetLCDString:
+					post_set_screen_with_string_msg();
+					break;
+				case R.id.SetLCDWithPic:
+					post_set_screen_with_pic_msg();
+					break;
+				case R.id.Settings:
+					
+					break;
+				default:
+					break;
+			}
 		}
 		return true;
 	}
@@ -453,16 +519,44 @@ public class WifiRobotActivity extends Activity {
 				break;
 			case R.id.button_video:
 				btn = (Button) findViewById(R.id.button_video);
-				if (video_flag == false){
-					ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.read_request, ctrl_prefixs.mass_data_request,ctrl_prefixs.withack);
-					ctrl_cmd = (short) (ctrlcmds.ACQUIRE_CAMERA_VIDEO_START);	
-					btn.setText(R.string.button_video_stop);
-					video_flag = true;
+				update_preference();
+				if (vlc_video_mode == false){
+					if (video_flag == false){
+						ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.read_request, ctrl_prefixs.mass_data_request,ctrl_prefixs.withack);
+						ctrl_cmd = (short) (ctrlcmds.ACQUIRE_CAMERA_VIDEO_START);	
+						btn.setText(R.string.button_video_stop);
+						video_flag = true;
+					}else{
+						ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.read_request, ctrl_prefixs.mass_data_request,ctrl_prefixs.withack);
+						ctrl_cmd = (short) (ctrlcmds.ACQUIRE_CAMERA_VIDEO_STOP);	
+						video_flag = false;
+						btn.setText(R.string.button_video_start);
+					}
 				}else{
-					ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.read_request, ctrl_prefixs.mass_data_request,ctrl_prefixs.withack);
-					ctrl_cmd = (short) (ctrlcmds.ACQUIRE_CAMERA_VIDEO_STOP);	
-					video_flag = false;
-					btn.setText(R.string.button_video_start);
+					if (player_sel){
+						play_stream_withotherplayer();
+					}else{
+						if (video_flag == false){
+							img_camera.setVisibility(View.INVISIBLE);
+							surface_vlc.setVisibility(View.VISIBLE);
+							while (!surface_vlc.isShown()); /*等待surface创建完毕*/
+							if (vlc_video_process()){
+								btn.setText(R.string.button_video_stop);
+								video_flag = true;
+							}else{
+								img_camera.setVisibility(View.VISIBLE);
+								surface_vlc.setVisibility(View.INVISIBLE);
+							}
+						}else{
+							video_flag = false;
+							vlcmediaPlayer.reset();
+							img_camera.setVisibility(View.VISIBLE);
+							surface_vlc.setVisibility(View.INVISIBLE);
+							btn.setText(R.string.button_video_start);
+						}
+					}
+
+					return;
 				}
 				break;
 			default:
@@ -472,6 +566,40 @@ public class WifiRobotActivity extends Activity {
 		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);		
 	}
 
+    public boolean vlc_video_process(){
+    	boolean play_state = false;
+    	try {
+			if (vlcmediaPlayer.isPlaying()){
+				vlcmediaPlayer.stop();
+			}
+			vlcmediaPlayer.reset();
+			vlcmediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+			vlcmediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
+			//vlcmediaPlayer.setDataSource("http://daily3gp.com/vids/747.3gp"); /*测试这个是可以播放的*/
+			vlcmediaPlayer.setDataSource(vlc_video_addr);
+			vlcmediaPlayer.prepare();
+			vlcmediaPlayer.start();
+			play_state = true;
+		} catch (Exception e) {
+			Log.e(TAG, "Error In Player");
+			disp_toast("无法播放该流媒体视频,请尝试调用外部播放器,推荐使用MX播放器!");
+			play_state = false;			
+		}
+    	return play_state;
+    }
+    
+    public void play_stream_withotherplayer(){
+    	try {
+			Intent it = new Intent(Intent.ACTION_VIEW);
+			Uri uri = Uri.parse(vlc_video_addr);
+			it.setDataAndType(uri, "video/*");
+			startActivity(it);
+		} catch (Exception e) {
+			Log.e(TAG, "Error In Play With Other Player");
+		}
+    }
+
+    
     private void post_tcp_msg(short ctrl_prefix, short ctrl_cmd, byte[] msg){
     	ctrl_frame mCtrl_frame = new ctrl_frame(ctrl_prefix, ctrl_cmd, msg);
 		byte[] tcp_msg = new byte[4+mCtrl_frame.datalength];
