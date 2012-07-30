@@ -3,6 +3,7 @@
     <item android:id="@+id/SetLCDWithPic" android:title="将图片显示到液晶上"></item>
     <item android:id="@+id/SetLCDClrScreen" android:title="液晶清屏"></item>
     <item android:id="@+id/SetLCDString" android:title="液晶字符显示"></item>
+    <item android:id="@+id/Settings" android:title="设置"></item>
     
 
 </menu>
