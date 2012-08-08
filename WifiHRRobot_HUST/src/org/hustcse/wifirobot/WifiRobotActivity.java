@@ -633,8 +633,9 @@ public class WifiRobotActivity extends Activity {
 			m_video_conn.connect();
 			m_InputStream = m_video_conn.getInputStream();
 			Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
-			img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
-			img_camera.setImageBitmap(img_camera_bmp);
+			//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
+			
+			img_camera.setImageBitmap(bmp);
 			flag = true;
 		} catch (Exception e) {
 			disp_toast("获取图像数据失败,请确认图像网址是否正确!");
@@ -1095,7 +1096,8 @@ public class WifiRobotActivity extends Activity {
 					m_InputStream = m_video_conn.getInputStream();
 					Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
 					//if (bmp != null){
-					img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
+					img_camera_bmp = bmp;
+					//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
 					video_Handler.obtainMessage(MSG_VIDEO_UPDATE) .sendToTarget();
 						//img_camera.setImageBitmap(img_camera_bmp);
 					//}
