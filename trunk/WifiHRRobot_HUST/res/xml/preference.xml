@@ -10,7 +10,7 @@
             android:title="启动VLC远程视频模式" />
 
         <EditTextPreference
-            android:defaultValue="http://192.168.0.30:8080"
+            android:defaultValue="http://115.156.219.39:8080/?action=snapshot"
             android:key="vlcaddr"
             android:summary="VLC视频服务器地址"
             android:title="视频地址" />
