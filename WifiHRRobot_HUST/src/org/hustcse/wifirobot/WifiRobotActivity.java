@@ -1,6 +1,14 @@
 package org.hustcse.wifirobot;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+
+import javax.net.ssl.HttpsURLConnection;
 import javax.security.auth.callback.Callback;
+
+import org.apache.http.HttpClientConnection;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -49,14 +57,20 @@ import com.MobileAnarchy.Android.Widgets.Joystick.JoystickView;
 
 public class WifiRobotActivity extends Activity {
 	private static String TAG = "WifiHRRobot";
-	private static String VLC_VIDEO_ADDR = "http://192.168.0.10:8080";
+	private static String VLC_VIDEO_ADDR = "http://115.156.219.39:8080/?action=stream";
 	private static String DIST_IPADDR = "192.168.0.10";
 	final static boolean D = true;
 	private SharedPreferences preferences;
 	MediaPlayer vlcmediaPlayer;
 	SurfaceView surface_vlc;
 	SurfaceHolder surfaceholder_vlc; 	
+	DrawVideo m_DrawVideo;
 	
+	final static int MSG_VIDEO_UPDATE = 1;
+	final static int MSG_VIDEO_ERROR = 2;
+
+
+
 	Button btn_image;
 	Button btn_video;
 	Button btn_follow_road_mode_ctrl;
@@ -419,6 +433,23 @@ public class WifiRobotActivity extends Activity {
 		}
 	};
     
+	private final Handler mHandler_video_process = new Handler(){
+		@Override
+		public void handleMessage(Message msg) {
+			switch (msg.what){
+				case MSG_VIDEO_UPDATE:
+					img_camera.setImageBitmap(img_camera_bmp);
+					break;
+				case MSG_VIDEO_ERROR:
+					((Button)findViewById(R.id.button_video)).setText(R.string.button_video_start);
+					disp_toast("获取视频数据失败,请确认视频网址是否正确!");
+					break;
+				default:
+					break;
+			}
+		}
+	};
+	
     private final Handler mHandler_UDP_MSG = new Handler() {
 		@Override
 		public void handleMessage(Message msg) {
@@ -514,8 +545,15 @@ public class WifiRobotActivity extends Activity {
 				break;
 				
 			case R.id.button_image:
-				ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.read_request, ctrl_prefixs.mass_data_request,ctrl_prefixs.withack);
-				ctrl_cmd = (short) (ctrlcmds.ACQUIRE_CAMERA_IMAGE);	
+				update_preference();
+				if (vlc_video_mode == false){
+					ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.read_request, ctrl_prefixs.mass_data_request,ctrl_prefixs.withack);
+					ctrl_cmd = (short) (ctrlcmds.ACQUIRE_CAMERA_IMAGE);	
+				}else{
+					get_remote_image(vlc_video_addr);
+					return;
+				}
+				
 				break;
 			case R.id.button_video:
 				btn = (Button) findViewById(R.id.button_video);
@@ -537,22 +575,36 @@ public class WifiRobotActivity extends Activity {
 						play_stream_withotherplayer();
 					}else{
 						if (video_flag == false){
-							img_camera.setVisibility(View.INVISIBLE);
+/*							img_camera.setVisibility(View.INVISIBLE);
 							surface_vlc.setVisibility(View.VISIBLE);
-							while (!surface_vlc.isShown()); /*等待surface创建完毕*/
+							while (!surface_vlc.isShown()); //等待surface创建完毕
 							if (vlc_video_process()){
 								btn.setText(R.string.button_video_stop);
 								video_flag = true;
 							}else{
 								img_camera.setVisibility(View.VISIBLE);
 								surface_vlc.setVisibility(View.INVISIBLE);
+							}*/
+							m_DrawVideo = new DrawVideo(vlc_video_addr,mHandler_video_process);
+							if (m_DrawVideo.testconnection() == true){
+								m_DrawVideo.start();
+								btn.setText(R.string.button_video_stop);
+								video_flag = true;
+							}else{
+								disp_toast("获取视频数据失败,请确认视频网址是否正确!");
 							}
 						}else{
+							if (m_DrawVideo != null){
+								m_DrawVideo.exit_thread();
+								m_DrawVideo.stop();
+							}
+							btn.setText(R.string.button_video_start);
 							video_flag = false;
+/*							video_flag = false;
 							vlcmediaPlayer.reset();
 							img_camera.setVisibility(View.VISIBLE);
 							surface_vlc.setVisibility(View.INVISIBLE);
-							btn.setText(R.string.button_video_start);
+							btn.setText(R.string.button_video_start);*/
 						}
 					}
 
@@ -566,6 +618,35 @@ public class WifiRobotActivity extends Activity {
 		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);		
 	}
 
+    public boolean get_remote_image(String url_addr){
+    	boolean flag = false;
+    	
+    	String m_video_addr = "http://115.156.219.39:8080/?action=stream"; 
+    	URL m_video_url = null;
+    	HttpURLConnection m_video_conn = null;
+    	InputStream m_InputStream= null;
+    	
+    	try {
+    		m_video_addr = url_addr;
+    		m_video_url = new URL(m_video_addr);
+			m_video_conn = (HttpURLConnection)m_video_url.openConnection();
+			m_video_conn.connect();
+			m_InputStream = m_video_conn.getInputStream();
+			Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+			img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
+			img_camera.setImageBitmap(img_camera_bmp);
+			flag = true;
+		} catch (Exception e) {
+			disp_toast("获取图像数据失败,请确认图像网址是否正确!");
+			Log.e(TAG, "Error In Get Image Msg:" + e.getMessage());
+			flag = false;
+		}
+    	if (m_video_conn != null){
+			m_video_conn.disconnect();
+		}
+    	return flag;
+    }
+    
     public boolean vlc_video_process(){
     	boolean play_state = false;
     	try {
@@ -964,4 +1045,68 @@ public class WifiRobotActivity extends Activity {
     private void disp_toast(String msg){
 		Toast.makeText(mContext, msg, Toast.LENGTH_SHORT).show();
 	}
+    
+    class DrawVideo extends Thread{
+    	private String m_video_addr = "http://115.156.219.39:8080/?action=stream"; 
+    	private URL m_video_url;
+    	private HttpURLConnection m_video_conn;
+    	private InputStream m_InputStream;
+    	private Handler 		video_Handler;
+    	private boolean exit_flag = false;
+    	
+    	public DrawVideo(String url_addr, Handler handler){
+    		m_video_addr = url_addr;
+    		video_Handler = handler;
+    	}
+
+    	public void exit_thread(){
+    		exit_flag = true;
+    	}
+    	
+    	public boolean testconnection(){
+    		boolean flag = false;
+    		try{
+				m_video_url = new URL(m_video_addr);
+				m_video_conn = (HttpURLConnection)m_video_url.openConnection();
+				m_video_conn.connect();
+				m_InputStream = m_video_conn.getInputStream();
+				Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+				if (bmp == null){
+					flag = false;
+				}else{
+					flag = true;
+				}
+    		}catch (Exception e) {
+				flag = false;
+				Log.e(TAG, "Error In Get Video Msg:" + e.getMessage());
+			}
+    		if (m_video_conn != null){
+    			m_video_conn.disconnect();
+    		}
+    		return flag;
+    	}
+    	
+    	public void run(){
+    		try {
+				while(!exit_flag){
+					m_video_url = new URL(m_video_addr);
+					m_video_conn = (HttpURLConnection)m_video_url.openConnection();
+					m_video_conn.connect();
+					m_InputStream = m_video_conn.getInputStream();
+					Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+					//if (bmp != null){
+					img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
+					video_Handler.obtainMessage(MSG_VIDEO_UPDATE) .sendToTarget();
+						//img_camera.setImageBitmap(img_camera_bmp);
+					//}
+					sleep(40);
+				}
+				exit_flag = false;
+			} catch (Exception e) {
+				video_flag = false;
+				Log.e(TAG, "Error In Get Video Msg:" + e.getMessage());
+				video_Handler.obtainMessage(MSG_VIDEO_ERROR) .sendToTarget();
+			}
+    	}
+    }
 }
