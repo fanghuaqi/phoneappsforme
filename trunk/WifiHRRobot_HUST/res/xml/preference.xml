@@ -14,8 +14,19 @@
             android:key="vlcaddr"
             android:summary="VLC视频服务器地址"
             android:title="视频地址" />
-        <EditTextPreference android:summary="设置主机端的IP地址" android:title="目标IP地址" android:defaultValue="192.168.0.10" android:key="distipaddr" android:enabled="false"/>
-        <CheckBoxPreference android:summaryOn="Enabled" android:summaryOff="Disabled" android:key="playersel" android:title="调用外部播放器" android:summary="视频播放模式选择"/>
+        <EditTextPreference
+            android:defaultValue="192.168.0.10"
+            android:enabled="false"
+            android:key="distipaddr"
+            android:summary="设置主机端的IP地址"
+            android:title="目标IP地址" />
+
+        <CheckBoxPreference
+            android:key="playersel"
+            android:summary="视频播放模式选择"
+            android:summaryOff="Disabled"
+            android:summaryOn="Enabled"
+            android:title="调用外部播放器" />
     </PreferenceCategory>
 
 </PreferenceScreen>
