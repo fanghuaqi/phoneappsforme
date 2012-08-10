@@ -10,5 +10,6 @@
     <string name="vlcvideostate">vlcvideostate</string>
     <string name="playersel">playersel</string>
     <string name="disttcpport">disttcpport</string>
- 
+    <string name="needsdlog">needsdlog</string>
+
 </resources>
