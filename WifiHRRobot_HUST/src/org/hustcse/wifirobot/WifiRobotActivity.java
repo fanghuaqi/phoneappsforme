@@ -1,9 +1,14 @@
 package org.hustcse.wifirobot;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.sql.Date;
+import java.text.SimpleDateFormat;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.security.auth.callback.Callback;
@@ -29,6 +34,7 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
@@ -145,18 +151,28 @@ public class WifiRobotActivity extends Activity {
 	
 	private long start_time = 0;
 	private long end_time = 0;
-
-
+	
+	private long benchmark_start = 0;
+	private long benchmark_end = 0;
+	
+	private static int MAX_PASS = 40;
+	private long[] time_pass = new long[MAX_PASS+1];
+	private String[] pass_log = new String[MAX_PASS+1];
+	private int pass_cnt = 0;
+	private String MYLOG_PATH_SD = "hrrobotlog";
+	private boolean need_sd_log = false;
 	
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
     	Log.i(TAG, "program startup");
+    	init_log_time();
 
     	start_time = System.currentTimeMillis();
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         
+        log_pass_time("Set ContentView OK");
         // Initialize preferences
         preferences = PreferenceManager.getDefaultSharedPreferences(this);
         //preferences.registerOnSharedPreferenceChangeListener(sys_set_chg_listener);
@@ -167,6 +183,8 @@ public class WifiRobotActivity extends Activity {
         surfaceholder_vlc.addCallback(new SHCallback());
         
        // surface_vlc.setVisibility(View.INVISIBLE);
+        log_pass_time("surfaceholder_vlc ok");
+
         
         /*获取屏幕的宽度长度*/
         display = getWindowManager().getDefaultDisplay();
@@ -181,6 +199,8 @@ public class WifiRobotActivity extends Activity {
         }
         
         Log.i(TAG, "Screen Resolution:" + screen_Height + " X " + screen_Width);
+        log_pass_time("screen info ok");
+
         
         btn_image = (Button)findViewById(R.id.button_image);
         btn_video = (Button)findViewById(R.id.button_video);
@@ -214,8 +234,14 @@ public class WifiRobotActivity extends Activity {
         btn_follow_road_mode_ctrl.setOnClickListener(ctrl_btn_listener);
         btn_set_camera2LCD.setOnClickListener(ctrl_btn_listener);
         
+        log_pass_time("all objects init ok");
+
+        
         tcp_ctrl_obj = new tcp_ctrl(getApplicationContext(), mHandler_UDP_SEND_MSG);
         udp_ctrl_obj = new udp_ctrl(getApplicationContext(), mHandler_UDP_MSG);
+        
+        log_pass_time("tcp and udp ok");
+                
         mContext = getApplicationContext();
         
 
@@ -235,11 +261,98 @@ public class WifiRobotActivity extends Activity {
         joystick.setLayoutParams(joyviewParams);
         joystick.setOnJostickMovedListener(_listener);
         
+        log_pass_time("joystick ok");
+
+        
     	end_time = System.currentTimeMillis();
     	
     	Log.i(TAG, "startup use "+ (end_time-start_time) + " ms");
     	disp_toast("启动耗时" + (end_time-start_time) + " ms");
-
+        log_pass_time("program started");
+        end_log_time();
+        write_log2file("hrrobotup");
+    }
+    
+    public void log_pass_time(String Tag){
+    	long pass_time;
+    	
+    	benchmark_end = System.currentTimeMillis();
+    	if (true){
+    		if (pass_cnt > MAX_PASS){
+    			return;
+    		}else{
+    			pass_time = benchmark_end - benchmark_start;
+    			time_pass[pass_cnt] = pass_time;  
+    			pass_log[pass_cnt] = "PASS " + pass_cnt + " : "+ Tag + ":" + "costs " + pass_time + "ms"; 
+    			pass_cnt ++;
+    		}
+    	}
+    	benchmark_start = System.currentTimeMillis();
+    }
+    
+    public void init_log_time(){
+    	benchmark_start = System.currentTimeMillis();
+    	benchmark_end = System.currentTimeMillis();
+    	start_time = System.currentTimeMillis();
+    	end_time = System.currentTimeMillis();
+    }
+    
+    public void end_log_time(){
+     	end_time = System.currentTimeMillis();
+    	
+    	if (true){
+    		if (pass_cnt > (MAX_PASS+1)){
+    			return;
+    		}else{
+    			long pass_time = end_time - start_time;
+    			time_pass[pass_cnt] = pass_time;  
+    			pass_log[pass_cnt] = "Program Startup Costs " + pass_time + "ms"; 
+    			pass_cnt ++;
+    		}
+    	}
+    }
+    
+    public void write_log2file(String log_file_name){
+    	update_preference();
+    	if (need_sd_log){
+	     	SimpleDateFormat   formatter   =   new   SimpleDateFormat   ("yyyy-MM-dd HH-mm-ss");     
+	    	Date   curDate   =   new   Date(System.currentTimeMillis());//获取当前时间     
+	    	String   log_file_date   =   formatter.format(curDate); 
+	    	String full_log_filename = log_file_name + "_" + log_file_date + ".txt";
+	    	
+	    	String sd_status = Environment.getExternalStorageState();
+	    	if (sd_status.equals(Environment.MEDIA_UNMOUNTED)){
+	    		disp_toast("SD卡没有挂载,无法写入日志文件到"+MYLOG_PATH_SD+"目录下!");
+	    		return;
+	    	}
+	    	String log_file_path = Environment.getExternalStorageDirectory() + File.separator +MYLOG_PATH_SD;
+	    	File log_file_Dir = new File(log_file_path);
+	    	File log_file = new File(log_file_path, full_log_filename);
+	    	try{
+	    		if (!log_file_Dir.exists()){/*文件或者不存在就创建目录和文件*/
+	    			if(!log_file_Dir.mkdir()){
+	    				disp_toast("创建启动日志文件目录失败!");
+	    				return;
+	    			}else{
+	    				if (!log_file.exists()){
+							log_file.createNewFile(); /*创建文件*/
+	    				}
+	    			}
+	    		}
+	    		//后面这个参数代表是不是要接上文件中原来的数据，不进行覆盖
+	    		FileWriter filerWriter = new FileWriter(log_file, true);
+	    		BufferedWriter bufWriter = new BufferedWriter(filerWriter); 
+	    		for (int cnt = 0; cnt < pass_cnt; cnt++){
+	    			bufWriter.write(pass_log[cnt]);
+	    			bufWriter.newLine();
+	    		}
+	    		bufWriter.close();
+	    		filerWriter.close();
+	    		disp_toast("启动日志文件已生成位于" + log_file.getAbsolutePath());
+	    	}catch (Exception e) {
+	    		Log.e(TAG,"Write Log File Failed! "+ e.getMessage());
+			}   		
+    	}
     }
     
     public class SHCallback implements SurfaceHolder.Callback{
@@ -274,6 +387,7 @@ public class WifiRobotActivity extends Activity {
 			dist_tcp_port = Integer.parseInt( (preferences.getString(getResources().getString(R.string.disttcpport), String.valueOf(DIST_TCPPORT))) );
 			vlc_video_mode = preferences.getBoolean(getResources().getString(R.string.vlcvideostate), false);
 			player_sel = preferences.getBoolean(getResources().getString(R.string.playersel), false);
+			need_sd_log = preferences.getBoolean(getResources().getString(R.string.needsdlog), false);
 		} catch (Exception e) {
 			Log.d(TAG,e.toString());
 		}

@@ -36,5 +36,15 @@
             android:summaryOn="Enabled"
             android:title="调用外部播放器" />
     </PreferenceCategory>
+    
+    <PreferenceCategory android:title="启动设置" >
+        <CheckBoxPreference
+            android:key="@string/needsdlog"
+            android:summary="是否需要在SD卡中生成启动的LOG文件方便分析"
+            android:summaryOff="Disabled"
+            android:summaryOn="Enabled"
+            android:title="启动过程日志记录" android:selectable="true" android:defaultValue="true"/>
+
+     </PreferenceCategory>
 
 </PreferenceScreen>
