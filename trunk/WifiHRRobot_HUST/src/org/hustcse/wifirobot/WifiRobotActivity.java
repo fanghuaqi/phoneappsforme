@@ -17,6 +17,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.BitmapFactory;
@@ -31,6 +32,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
+import android.preference.Preference.OnPreferenceChangeListener;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.Display;
@@ -58,13 +60,19 @@ import com.MobileAnarchy.Android.Widgets.Joystick.JoystickView;
 public class WifiRobotActivity extends Activity {
 	private static String TAG = "WifiHRRobot";
 	private static String VLC_VIDEO_ADDR = "http://115.156.219.39:8080/?action=stream";
-	private static String DIST_IPADDR = "192.168.0.10";
+	private static String DIST_TCPIPADDR = "192.168.0.200";
+	private static int DIST_TCPPORT = 1234;
+
 	final static boolean D = true;
 	private SharedPreferences preferences;
 	MediaPlayer vlcmediaPlayer;
 	SurfaceView surface_vlc;
 	SurfaceHolder surfaceholder_vlc; 	
 	DrawVideo m_DrawVideo;
+	
+	private  String dist_tcp_addr;
+	private int dist_tcp_port;
+
 	
 	final static int MSG_VIDEO_UPDATE = 1;
 	final static int MSG_VIDEO_ERROR = 2;
@@ -121,6 +129,8 @@ public class WifiRobotActivity extends Activity {
 	
 	private  final  static int LCD_X_MAX = 255;
 	private  final  static int LCD_Y_MAX = 63;
+	private static final int REQ_SYSTEM_SETTINGS = 0x0;
+	private static final int REQ_SET_WITH_PIC = 0x1;
 
 	
 	Display display;
@@ -142,6 +152,8 @@ public class WifiRobotActivity extends Activity {
         
         // Initialize preferences
         preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        //preferences.registerOnSharedPreferenceChangeListener(sys_set_chg_listener);
+        
         surface_vlc = (SurfaceView)findViewById(R.id.SurfaceView_camera);
         surfaceholder_vlc = surface_vlc.getHolder();
         surfaceholder_vlc.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
@@ -245,9 +257,11 @@ public class WifiRobotActivity extends Activity {
     
     public void update_preference(){
     	try {
-			vlc_video_addr = preferences.getString("vlcaddr", VLC_VIDEO_ADDR);
-			vlc_video_mode = preferences.getBoolean("vlcvideostate", false);
-			player_sel = preferences.getBoolean("playersel", false);
+			vlc_video_addr = preferences.getString(getResources().getString(R.string.vlcaddr), VLC_VIDEO_ADDR);
+			dist_tcp_addr = preferences.getString(getResources().getString(R.string.distipaddr), DIST_TCPIPADDR);
+			dist_tcp_port = Integer.parseInt( (preferences.getString(getResources().getString(R.string.disttcpport), String.valueOf(DIST_TCPPORT))) );
+			vlc_video_mode = preferences.getBoolean(getResources().getString(R.string.vlcvideostate), false);
+			player_sel = preferences.getBoolean(getResources().getString(R.string.playersel), false);
 		} catch (Exception e) {
 			Log.d(TAG,e.toString());
 		}
@@ -255,7 +269,7 @@ public class WifiRobotActivity extends Activity {
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
 		if (item.getItemId() == R.id.Settings){
-			startActivity(new Intent(this, Preferences.class));
+			startActivityForResult(new Intent(this, Preferences.class), REQ_SYSTEM_SETTINGS);
 		}else{
 			if (show_camera2LCD_flag){
 				disp_toast("正在动态显示摄像头图像到液晶,请先退出该模式,再进行操作!");
@@ -494,6 +508,24 @@ public class WifiRobotActivity extends Activity {
         	post_ctrl_btnclk_msg(v.getId());
         }
     };
+    
+    private OnSharedPreferenceChangeListener sys_set_chg_listener = new OnSharedPreferenceChangeListener() {
+		
+		@Override
+		public void onSharedPreferenceChanged(SharedPreferences sharedPreferences,
+				String key) {
+			if (key == getResources().getString(R.string.vlcaddr)){
+				vlc_video_addr = preferences.getString(key, VLC_VIDEO_ADDR);			
+			}else if (key == getResources().getString(R.string.vlcvideostate)){
+				
+			}else if ( (key == getResources().getString(R.string.distipaddr)) || 
+					(key == getResources().getString(R.string.disttcpport))){
+				dist_tcp_addr = preferences.getString(getResources().getString(R.string.distipaddr), DIST_TCPIPADDR);
+				dist_tcp_port = Integer.parseInt( (preferences.getString(getResources().getString(R.string.disttcpport), String.valueOf(DIST_TCPPORT))) );
+				tcp_ctrl_obj.mTcp_ctrl_client.tcpreconnect(dist_tcp_addr,dist_tcp_port);
+			}
+		}
+	};
     
     /*处理对小车控制按钮的消息*/
     private void post_ctrl_btnclk_msg(int btn_id) {
@@ -799,7 +831,7 @@ public class WifiRobotActivity extends Activity {
     	//if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()){
 	    	Intent intent = new Intent(Intent.ACTION_GET_CONTENT); 
 	    	intent.setType("image/*");
-	    	int requestCode = ctrlcmds.SET_LCD_WITH_PIC;
+	    	int requestCode = REQ_SET_WITH_PIC;
 			startActivityForResult(intent, requestCode );
     	//}else{
     	//	disp_toast("没有连接到TCP服务端,请退出后连接到相应无线网络!");
@@ -808,105 +840,13 @@ public class WifiRobotActivity extends Activity {
     
     @Override  
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {  
-    	boolean ifSucess = true;
-    	short ctrl_cmd = 0 ;
-    	short ctrl_prefix = 0;
     	
     	switch (requestCode) {
-			case ctrlcmds.SET_LCD_WITH_PIC:
-				if (resultCode == RESULT_OK){
-					try {
-						Uri uri = data.getData();	
-						ContentResolver cr = this.getContentResolver();
-						Bitmap bitmap = BitmapFactory.decodeStream(cr.openInputStream(uri));
-						Bitmap bitmap_cp = Bitmap.createScaledBitmap(bitmap, img_width, img_height, false);
-						Bitmap bitmap_rgb = bitmap_cp.copy(img_cfg, true);
-						Bitmap bitmap_bw = bitmap_cp.copy(img_cfg, true);
-						byte[] grey_pixels = new byte[img_width*img_height];
-						int threshold = 40;
-						if ( (threshold = convertRGB2GreyScale(bitmap_rgb, grey_pixels)) !=  0){
-							int imagerawsize = img_width*img_height;
-							int datasize = imagerawsize;
-							int frame_prefix = 9;
-							int data_offset = 0;
-							int frame_cnt = 0;
-							int data_length ;
-							while (datasize > 0){
-								if (datasize > (tcp_small_frame_size - frame_prefix)){
-									data_length =  tcp_small_frame_size - frame_prefix;
-									datasize = datasize - data_length;
-								}else{
-									data_length = datasize;
-									datasize = 0;
-								}
-								byte[] grey_pixels_msg = new byte[data_length+frame_prefix];
-								grey_pixels_msg[0] =  (byte)(img_width & 0xff);
-								grey_pixels_msg[1] =  (byte)((img_width >> 8)  & 0xff);
-								grey_pixels_msg[2] =  (byte)(img_height & 0xff);
-								grey_pixels_msg[3] =  (byte)((img_height >> 8)  & 0xff);
-								grey_pixels_msg[4] =  (byte)(frame_cnt & 0xff);
-								grey_pixels_msg[5] =  (byte)((frame_cnt >> 8)  & 0xff);
-								grey_pixels_msg[6] =  (byte)(data_length & 0xff);
-								grey_pixels_msg[7] =  (byte)((data_length >> 8)  & 0xff);
-								grey_pixels_msg[8] =  (byte)(threshold & 0xff);
-								System.arraycopy(grey_pixels, data_offset, grey_pixels_msg, frame_prefix, data_length);
-								data_offset = data_offset + data_length;
-								
-								ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,ctrl_prefixs.withoutack);
-								ctrl_cmd = (short) (ctrlcmds.SET_LCD_WITH_PIC);
-								post_tcp_msg(ctrl_prefix, ctrl_cmd, grey_pixels_msg);
-								Log.i(TAG, "Set LCD With Image Small Frame Index " + frame_cnt + " Send!");
-								Thread.sleep(50);
-								frame_cnt ++;
-							}
-							ImageView img = new ImageView(WifiRobotActivity.this); /*必须要用WifiRobotActivity.this 否则就会报错*/
-							img.setMinimumWidth(320);
-							img.setMinimumHeight(480);
-
-							img.setScaleType(ScaleType.FIT_XY);
-							img.setImageBitmap(bitmap_rgb);
-							new AlertDialog.Builder(WifiRobotActivity.this)
-								.setTitle("已经发送的图像灰度图如图所示")
-								.setView(img)
-								.setPositiveButton("确定", null)
-								.show();
-							
-							if (convertRGB2BlackWhite(bitmap_bw, threshold)){
-								ImageView img_wb = new ImageView(WifiRobotActivity.this); /*必须要用WifiRobotActivity.this 否则就会报错*/
-								img_wb.setMinimumWidth(320);
-								img_wb.setMinimumHeight(480);
-	
-								img_wb.setScaleType(ScaleType.FIT_XY);
-								img_wb.setImageBitmap(bitmap_bw);
-								new AlertDialog.Builder(WifiRobotActivity.this)
-									.setTitle("已经发送的图像二值化后如图所示")
-									.setView(img_wb)
-									.setPositiveButton("确定", null)
-									.show();
-							}
-							//img_camera.setImageBitmap(bitmap_rgb);
-							Thread.sleep(30); /*等待ARM端处理完毕*/
-						}else{
-							ifSucess = false;
-						}
-					} catch (Exception e) {
-						ifSucess = false;
-						if (e.getMessage() != null){
-							Log.e(TAG,e.getMessage());
-						}else if (e.toString() != null){
-							Log.e(TAG,e.toString());
-						}else{
-							Log.e(TAG,"Error in send pic to lcd command");
-						}
-					}
-				}else{
-					ifSucess = false;
-				}
-				if (!ifSucess){
-					disp_toast("采用图像来设置液晶命令未发送!");
-				}else{
-					disp_toast("采用图像来设置液晶命令已经全部发送!");
-				}
+			case REQ_SET_WITH_PIC:
+				send_image2lcd(resultCode, data);
+				break;
+			case REQ_SYSTEM_SETTINGS:
+				systemsettingchange(resultCode, data);
 				break;
 	
 			default:
@@ -914,6 +854,121 @@ public class WifiRobotActivity extends Activity {
 		}
     	super.onActivityResult(requestCode, resultCode, data);  
     }
+    
+    private boolean systemsettingchange(int resultCode, Intent data){
+    	boolean ifSucess = true;
+
+    	if (resultCode == RESULT_OK){
+    		
+    	}else{
+    		Log.i(TAG,"None settings change");
+    	}
+    	return ifSucess;
+    }
+    
+    private boolean send_image2lcd(int resultCode, Intent data){
+    	boolean ifSucess = true;
+    	short ctrl_cmd = 0 ;
+    	short ctrl_prefix = 0;
+
+		if (resultCode == RESULT_OK){
+			try {
+				Uri uri = data.getData();	
+				ContentResolver cr = this.getContentResolver();
+				Bitmap bitmap = BitmapFactory.decodeStream(cr.openInputStream(uri));
+				Bitmap bitmap_cp = Bitmap.createScaledBitmap(bitmap, img_width, img_height, false);
+				Bitmap bitmap_rgb = bitmap_cp.copy(img_cfg, true);
+				Bitmap bitmap_bw = bitmap_cp.copy(img_cfg, true);
+				byte[] grey_pixels = new byte[img_width*img_height];
+				int threshold = 40;
+				if ( (threshold = convertRGB2GreyScale(bitmap_rgb, grey_pixels)) !=  0){
+					int imagerawsize = img_width*img_height;
+					int datasize = imagerawsize;
+					int frame_prefix = 9;
+					int data_offset = 0;
+					int frame_cnt = 0;
+					int data_length ;
+					while (datasize > 0){
+						if (datasize > (tcp_small_frame_size - frame_prefix)){
+							data_length =  tcp_small_frame_size - frame_prefix;
+							datasize = datasize - data_length;
+						}else{
+							data_length = datasize;
+							datasize = 0;
+						}
+						byte[] grey_pixels_msg = new byte[data_length+frame_prefix];
+						grey_pixels_msg[0] =  (byte)(img_width & 0xff);
+						grey_pixels_msg[1] =  (byte)((img_width >> 8)  & 0xff);
+						grey_pixels_msg[2] =  (byte)(img_height & 0xff);
+						grey_pixels_msg[3] =  (byte)((img_height >> 8)  & 0xff);
+						grey_pixels_msg[4] =  (byte)(frame_cnt & 0xff);
+						grey_pixels_msg[5] =  (byte)((frame_cnt >> 8)  & 0xff);
+						grey_pixels_msg[6] =  (byte)(data_length & 0xff);
+						grey_pixels_msg[7] =  (byte)((data_length >> 8)  & 0xff);
+						grey_pixels_msg[8] =  (byte)(threshold & 0xff);
+						System.arraycopy(grey_pixels, data_offset, grey_pixels_msg, frame_prefix, data_length);
+						data_offset = data_offset + data_length;
+						
+						ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,ctrl_prefixs.withoutack);
+						ctrl_cmd = (short) (ctrlcmds.SET_LCD_WITH_PIC);
+						post_tcp_msg(ctrl_prefix, ctrl_cmd, grey_pixels_msg);
+						Log.i(TAG, "Set LCD With Image Small Frame Index " + frame_cnt + " Send!");
+						Thread.sleep(50);
+						frame_cnt ++;
+					}
+					ImageView img = new ImageView(WifiRobotActivity.this); /*必须要用WifiRobotActivity.this 否则就会报错*/
+					img.setMinimumWidth(320);
+					img.setMinimumHeight(480);
+
+					img.setScaleType(ScaleType.FIT_XY);
+					img.setImageBitmap(bitmap_rgb);
+					new AlertDialog.Builder(WifiRobotActivity.this)
+						.setTitle("已经发送的图像灰度图如图所示")
+						.setView(img)
+						.setPositiveButton("确定", null)
+						.show();
+					
+					if (convertRGB2BlackWhite(bitmap_bw, threshold)){
+						ImageView img_wb = new ImageView(WifiRobotActivity.this); /*必须要用WifiRobotActivity.this 否则就会报错*/
+						img_wb.setMinimumWidth(320);
+						img_wb.setMinimumHeight(480);
+
+						img_wb.setScaleType(ScaleType.FIT_XY);
+						img_wb.setImageBitmap(bitmap_bw);
+						new AlertDialog.Builder(WifiRobotActivity.this)
+							.setTitle("已经发送的图像二值化后如图所示")
+							.setView(img_wb)
+							.setPositiveButton("确定", null)
+							.show();
+					}
+					//img_camera.setImageBitmap(bitmap_rgb);
+					Thread.sleep(30); /*等待ARM端处理完毕*/
+				}else{
+					ifSucess = false;
+				}
+			} catch (Exception e) {
+				ifSucess = false;
+				if (e.getMessage() != null){
+					Log.e(TAG,e.getMessage());
+				}else if (e.toString() != null){
+					Log.e(TAG,e.toString());
+				}else{
+					Log.e(TAG,"Error in send pic to lcd command");
+				}
+			}
+		}else{
+			ifSucess = false;
+		}
+		
+		if (!ifSucess){
+			disp_toast("采用图像来设置液晶命令未发送!");
+		}else{
+			disp_toast("采用图像来设置液晶命令已经全部发送!");
+		}
+		
+		return ifSucess;
+    }
+    
     
     /*将图像转换为灰度图,并且如果图像存在就将其灰度(不为0)返回,不存在返回灰度为0*/
     private int convertRGB2GreyScale(Bitmap bitmap, byte[] picPixels){
