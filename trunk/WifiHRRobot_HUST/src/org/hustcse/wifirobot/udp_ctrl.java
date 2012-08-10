@@ -199,7 +199,7 @@ public class udp_ctrl {
 		}
 	}
 	
-		private void handle_ACQUIRE_CAMERA_VIDEO_START_msg(byte[] frame){
+	private void handle_ACQUIRE_CAMERA_VIDEO_START_msg(byte[] frame){
 		short frame_index = 0;
 		long image_index = 0;
 		long image_time_end ;

@@ -3,6 +3,7 @@ package org.hustcse.wifirobot;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.LinkedList;
 
@@ -20,7 +21,9 @@ public class tcp_ctrl_client extends Thread {
 	final static int receive_pool_size  =  1024;
 	final static int MSG_WHAT = 1;
 	final static int MAX_TRIES = 100;
-	final static int RW_TIMEOUT = 1000;
+	final static int RW_TIMEOUT = 2000;
+	final static int TCP_CON_TOUT = 1500;
+
 	
 	final static short no_ack = 0;
 	final static short tcp_ack = 1;
@@ -29,6 +32,9 @@ public class tcp_ctrl_client extends Thread {
 	Handler 		mHandler;      // Handler for messages in the main thread 
 	Context 		mContext;	   // Context to the application (for getting ip Addresses)
 	Socket 			clientSocket;  // Socket used both for sending and receiving 
+	InetSocketAddress clentSocketAddr;
+	boolean tcp_connect_try = false;
+	
 	private boolean 		socketOK=false; // True as long as we don't get socket errors
 	
 	OutputStream 	socket_output;
@@ -56,31 +62,59 @@ public class tcp_ctrl_client extends Thread {
 		mContext = currentContext;
 		
 		try {
+			//if(D) Log.d(TAG, "Try Connect to TCP Server @" + ip + ":" + port); 
+
 			tcp_send_msg_queue = new LinkedList<byte[]>();
 			tcp_rec_msg_queue = new LinkedList<byte[]>();
 			rec_msg_handle = new receive_msg_handle(mHandler);
 			rec_msg_handle.start();
+			//if(D) Log.d(TAG, "tcp receive handler start"); 
 
 			InetAddress tcpserver_Addr = InetAddress.getByName(ip);
-			clientSocket = new Socket(tcpserver_Addr, port);
-			clientSocket.setSoTimeout(RW_TIMEOUT);
-			socket_output = clientSocket.getOutputStream();
-			socket_input = clientSocket.getInputStream();
+			clentSocketAddr = new InetSocketAddress(tcpserver_Addr, port);
+			clientSocket = new Socket();
+			//if(D) Log.d(TAG, "tcp socket connect success" ); 
 
-			socketOK = true;
+			//clientSocket.setSoTimeout(RW_TIMEOUT);
+			//socket_output = clientSocket.getOutputStream();
+			//socket_input = clientSocket.getInputStream();
+
+			socketOK = false;
 						
 			IP = ip;
 			PORT = port;
 
-			if(D) Log.d(TAG, "Connect to Server @" + ip + ":" + port); 
+			//if(D) Log.d(TAG, "Connect to Server @" + ip + ":" + port); 
 
-			disp_toast("Connect to Server @" + ip + ":" + port);
+			//disp_toast("Connect to Server @" + ip + ":" + port);
 		} catch (Exception e) {
+			//if(D) Log.d(TAG, "tcp socket connect fail" ); 
+
 			socketOK  = false;
-			disp_toast("Can't Connect to Server @" + ip + ":" + port);
-			if(D) Log.e(TAG, "TCP client connect to server error:" + e.getMessage()); 
+			//disp_toast("Can't Connect to Server @" + ip + ":" + port);
+			//if(D) Log.e(TAG, "TCP client connect to server error:" + e.getMessage()); 
 		}
-		
+		tcp_connect_try = false;
+	}
+	
+	public boolean tcp_connect(){
+		if (!tcp_connect_try){
+			try{
+				clientSocket.connect(clentSocketAddr, TCP_CON_TOUT);
+				clientSocket.setSoTimeout(RW_TIMEOUT);
+				socket_output = clientSocket.getOutputStream();
+				socket_input = clientSocket.getInputStream();
+				if(D) Log.d(TAG, "Connect to Server @" + IP + ":" + PORT); 
+				disp_toast("Connect to Server @" + IP + ":" + PORT);
+				socketOK = true;
+			}catch (Exception e) {
+				socketOK  = false;
+				disp_toast("Can't Connect to Server @" + IP + ":" + PORT);
+				if(D) Log.e(TAG, "TCP client connect to server error:" + e.getMessage()); 
+			}
+		}
+		tcp_connect_try = true;
+		return socketOK;
 	}
 	
 	boolean tcpreconnect(String ip, int port){
@@ -118,6 +152,7 @@ public class tcp_ctrl_client extends Thread {
 	}
 	
 	public synchronized void post_msg(byte[] msg){
+		tcp_connect();
 		if (!socketOK){
 			disp_toast("TCP Socket Client Is not ready!");
 			return;
