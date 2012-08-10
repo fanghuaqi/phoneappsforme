@@ -142,11 +142,18 @@ public class WifiRobotActivity extends Activity {
 	
 	private float btn_scale = (float) 30;
 	private float txtview_scale = (float) 28;
+	
+	private long start_time = 0;
+	private long end_time = 0;
+
 
 	
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
+    	Log.i(TAG, "program startup");
+
+    	start_time = System.currentTimeMillis();
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
         
@@ -228,6 +235,11 @@ public class WifiRobotActivity extends Activity {
         joystick.setLayoutParams(joyviewParams);
         joystick.setOnJostickMovedListener(_listener);
         
+    	end_time = System.currentTimeMillis();
+    	
+    	Log.i(TAG, "startup use "+ (end_time-start_time) + " ms");
+    	disp_toast("启动耗时" + (end_time-start_time) + " ms");
+
     }
     
     public class SHCallback implements SurfaceHolder.Callback{
@@ -340,6 +352,7 @@ public class WifiRobotActivity extends Activity {
 	
 	/*测试是否角度和速度没有改变 并发送控制小车命令*/
 	private void checkSendOperateCarMsg(){
+		tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
 		if (! ((operate_angle == operate_angle_last)  && (operate_speed == operate_speed_last))){
 			if ((!follow_road_flag) && (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK())){ /*非巡线模式才可以进行遥控 并且当前socket可用才进行数据发送*/
 				postOperateCarMessage(operate_angle, operate_speed);
@@ -1156,7 +1169,7 @@ public class WifiRobotActivity extends Activity {
 					video_Handler.obtainMessage(MSG_VIDEO_UPDATE) .sendToTarget();
 						//img_camera.setImageBitmap(img_camera_bmp);
 					//}
-					sleep(40);
+					sleep(35);
 				}
 				exit_flag = false;
 			} catch (Exception e) {

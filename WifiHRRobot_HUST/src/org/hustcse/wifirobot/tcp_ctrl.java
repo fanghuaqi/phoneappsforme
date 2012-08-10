@@ -221,6 +221,7 @@ public class tcp_ctrl {
 	
 	
 	private boolean getMyWiFiBcastAndIPAddress() throws UnknownHostException{
+    	if(D) Log.d(TAG,"start get wifi status");
 
         WifiManager mWifi = (WifiManager) (mContext.getSystemService(Context.WIFI_SERVICE));
         WifiInfo info = mWifi.getConnectionInfo();
