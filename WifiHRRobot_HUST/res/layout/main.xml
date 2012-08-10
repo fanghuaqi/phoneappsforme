@@ -7,7 +7,9 @@
     <SurfaceView
         android:id="@+id/SurfaceView_camera"
         android:layout_width="fill_parent"
-        android:layout_height="fill_parent" />
+        android:layout_height="fill_parent"
+        android:clickable="false"
+        android:visibility="invisible" />
 
     <ImageView
         android:id="@+id/imageView_camera"
