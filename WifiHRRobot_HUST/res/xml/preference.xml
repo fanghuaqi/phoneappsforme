@@ -3,7 +3,7 @@
 
     <PreferenceCategory android:title="网络设置" >
         <CheckBoxPreference
-            android:key="vlcvideostate"
+            android:key="@string/vlcvideostate"
             android:summary="VLC远程视频模式开启/关闭"
             android:summaryOff="Disabled"
             android:summaryOn="Enabled"
@@ -11,18 +11,26 @@
 
         <EditTextPreference
             android:defaultValue="http://115.156.219.39:8080/?action=snapshot"
-            android:key="vlcaddr"
+            android:key="@string/vlcaddr"
             android:summary="VLC视频服务器地址"
             android:title="视频地址" />
+
         <EditTextPreference
             android:defaultValue="192.168.0.10"
             android:enabled="false"
-            android:key="distipaddr"
+            android:key="@string/distipaddr"
             android:summary="设置主机端的IP地址"
             android:title="目标IP地址" />
 
+        <EditTextPreference
+            android:defaultValue="1234"
+            android:enabled="false"
+            android:key="@string/disttcpport"
+            android:summary="设置主机端TCP服务器开启的端口"
+            android:title="TCP 主机端口" />
+
         <CheckBoxPreference
-            android:key="playersel"
+            android:key="@string/playersel"
             android:summary="视频播放模式选择"
             android:summaryOff="Disabled"
             android:summaryOn="Enabled"

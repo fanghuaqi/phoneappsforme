@@ -52,8 +52,6 @@ public class tcp_ctrl_client extends Thread {
 
 	
 	public tcp_ctrl_client (Context currentContext,Handler handler, String ip, int port) {
-		IP = ip;
-		PORT = port;
 		mHandler = handler;
 		mContext = currentContext;
 		
@@ -63,14 +61,17 @@ public class tcp_ctrl_client extends Thread {
 			rec_msg_handle = new receive_msg_handle(mHandler);
 			rec_msg_handle.start();
 
-			InetAddress tcpserver_Addr = InetAddress.getByName(IP);
-			clientSocket = new Socket(tcpserver_Addr, PORT);
+			InetAddress tcpserver_Addr = InetAddress.getByName(ip);
+			clientSocket = new Socket(tcpserver_Addr, port);
 			clientSocket.setSoTimeout(RW_TIMEOUT);
 			socket_output = clientSocket.getOutputStream();
 			socket_input = clientSocket.getInputStream();
 
 			socketOK = true;
 						
+			IP = ip;
+			PORT = port;
+
 			if(D) Log.d(TAG, "Connect to Server @" + ip + ":" + port); 
 
 			disp_toast("Connect to Server @" + ip + ":" + port);
@@ -80,6 +81,32 @@ public class tcp_ctrl_client extends Thread {
 			if(D) Log.e(TAG, "TCP client connect to server error:" + e.getMessage()); 
 		}
 		
+	}
+	
+	boolean tcpreconnect(String ip, int port){
+
+		try {
+			InetAddress tcpserver_Addr = InetAddress.getByName(ip);
+			clientSocket = new Socket(tcpserver_Addr, port);
+			clientSocket.setSoTimeout(RW_TIMEOUT);
+			socket_output = clientSocket.getOutputStream();
+			socket_input = clientSocket.getInputStream();
+
+			socketOK = true;
+						
+			if(D) Log.d(TAG, "Connect to Server @" + ip + ":" + port); 
+
+			disp_toast("Connect to Server @" + ip + ":" + port);
+			
+			IP = ip;
+			PORT = port;
+
+		} catch (Exception e) {
+			socketOK  = false;
+			disp_toast("Can't Connect to Server @" + ip + ":" + port);
+			if(D) Log.e(TAG, "TCP client connect to server error:" + e.getMessage()); 
+		}
+		return socketOK;
 	}
 	
 	boolean isSocketOK(){

@@ -4,11 +4,13 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.DhcpInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Message;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -18,6 +20,7 @@ public class tcp_ctrl {
 	final static int CLIENT  = 2;
 	private static String TAG = "TCP_CTRL";
 	final static int MSG_WHAT = 1;
+	private SharedPreferences preferences;
 
 	ctrl_frame	tcp_server_frame;
 	ctrl_frame	tcp_client_frame;
@@ -52,14 +55,18 @@ public class tcp_ctrl {
 		}catch (Exception e) {
 			disp_toast("Wifi Maybe Not Opened");
 		}
-		
+		preferences = PreferenceManager.getDefaultSharedPreferences(mContext);
+
 		/*mTcp_ctrl_server = new tcp_ctrl_server(currentContext, mHandler_Server, SERVER_IP, SERVER_PORT);
 		if (!mTcp_ctrl_server.isSocketOK()){
 			Log.e(TAG,"TCP Server NOT STARTED");
 			//disp_toast("Cannot Start TCP Server Server");
      	   	return;
 		}*/
-		mTcp_ctrl_client = new tcp_ctrl_client(currentContext, mHandler_Client, CLIENT_IP, CLIENT_PORT);
+		String dist_addr = CLIENT_IP;///preferences.getString(mContext.getResources().getString(R.string.distipaddr), CLIENT_IP);
+		int dist_port = CLIENT_PORT;//Integer.parseInt((preferences.getString(mContext.getResources().getString(R.string.disttcpport), String.valueOf(CLIENT_PORT) )));
+		
+		mTcp_ctrl_client = new tcp_ctrl_client(currentContext, mHandler_Client, dist_addr, dist_port);
 		if (!mTcp_ctrl_client.isSocketOK()){
 			Log.e(TAG,"TCP Client NOT STARTED");
 			//disp_toast("Cannot Start TCP Client Server");
