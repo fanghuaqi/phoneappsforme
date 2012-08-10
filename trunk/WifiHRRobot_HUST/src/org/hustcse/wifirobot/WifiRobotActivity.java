@@ -1,8 +1,11 @@
 package org.hustcse.wifirobot;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -158,6 +161,14 @@ public class WifiRobotActivity extends Activity {
 	private static int MAX_PASS = 40;
 	private long[] time_pass = new long[MAX_PASS+1];
 	private String[] pass_log = new String[MAX_PASS+1];
+	
+	private static int MAX_INFO_CNT = 40;
+	private String CAT_FILE_PATH = "/system/bin/cat";
+
+	private String[] SystemInfo = new String[MAX_INFO_CNT];
+	
+	private int SystemInfoCnt = 0;
+
 	private int pass_cnt = 0;
 	private String MYLOG_PATH_SD = "hrrobotlog";
 	private boolean need_sd_log = false;
@@ -177,10 +188,10 @@ public class WifiRobotActivity extends Activity {
         preferences = PreferenceManager.getDefaultSharedPreferences(this);
         //preferences.registerOnSharedPreferenceChangeListener(sys_set_chg_listener);
         
-        surface_vlc = (SurfaceView)findViewById(R.id.SurfaceView_camera);
-        surfaceholder_vlc = surface_vlc.getHolder();
-        surfaceholder_vlc.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-        surfaceholder_vlc.addCallback(new SHCallback());
+        //surface_vlc = (SurfaceView)findViewById(R.id.SurfaceView_camera);
+        //surfaceholder_vlc = surface_vlc.getHolder();
+        //surfaceholder_vlc.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        //surfaceholder_vlc.addCallback(new SHCallback());
         
        // surface_vlc.setVisibility(View.INVISIBLE);
         log_pass_time("surfaceholder_vlc ok");
@@ -235,12 +246,11 @@ public class WifiRobotActivity extends Activity {
         btn_set_camera2LCD.setOnClickListener(ctrl_btn_listener);
         
         log_pass_time("all objects init ok");
-
         
         tcp_ctrl_obj = new tcp_ctrl(getApplicationContext(), mHandler_UDP_SEND_MSG);
+        log_pass_time("tcp ok");
         udp_ctrl_obj = new udp_ctrl(getApplicationContext(), mHandler_UDP_MSG);
-        
-        log_pass_time("tcp and udp ok");
+        log_pass_time("udp ok");
                 
         mContext = getApplicationContext();
         
@@ -270,6 +280,7 @@ public class WifiRobotActivity extends Activity {
     	disp_toast("启动耗时" + (end_time-start_time) + " ms");
         log_pass_time("program started");
         end_log_time();
+        log_system_info();
         write_log2file("hrrobotup");
     }
     
@@ -312,10 +323,69 @@ public class WifiRobotActivity extends Activity {
     	}
     }
     
+    public void log_system_info(){
+    	String ScreenInfo = "Screen Resolution:" + screen_Height + " X " + screen_Width;
+    	String CpuInfo = "";
+    	String VersionInfo = "";
+    	
+    	CpuInfo  = readfile2str("/proc/cpuinfo");
+    	VersionInfo = readfile2str("proc/version");
+    	
+    	SystemInfo[0] = CpuInfo;
+    	SystemInfo[1] = VersionInfo;
+    	SystemInfo[2] = ScreenInfo;
+    	SystemInfo[3] = getphoneinfo();
+    	
+    	SystemInfoCnt = 4;
+    }
+    
+    public String getphoneinfo(){
+    	String phoneInfo = "Product: " + android.os.Build.PRODUCT;
+        phoneInfo += "\n CPU_ABI: " + android.os.Build.CPU_ABI;
+        phoneInfo += "\n TAGS: " + android.os.Build.TAGS;
+        phoneInfo += "\n VERSION_CODES.BASE: " + android.os.Build.VERSION_CODES.BASE;
+        phoneInfo += "\n MODEL: " + android.os.Build.MODEL;
+        phoneInfo += "\n SDK: " + android.os.Build.VERSION.SDK;
+        phoneInfo += "\n VERSION.RELEASE: " + android.os.Build.VERSION.RELEASE;
+        phoneInfo += "\n DEVICE: " + android.os.Build.DEVICE;
+        phoneInfo += "\n DISPLAY: " + android.os.Build.DISPLAY;
+        phoneInfo += "\n BRAND: " + android.os.Build.BRAND;
+        phoneInfo += "\n BOARD: " + android.os.Build.BOARD;
+        phoneInfo += "\n FINGERPRINT: " + android.os.Build.FINGERPRINT;
+        phoneInfo += "\n ID: " + android.os.Build.ID;
+        phoneInfo += "\n MANUFACTURER: " + android.os.Build.MANUFACTURER;
+        phoneInfo += "\n USER: " + android.os.Build.USER;
+        
+        return phoneInfo;
+    }
+    
+    public String readfile2str(String file_path){
+    	String res = "";
+    	
+    	File file = new File(file_path);
+    	if (file.exists()){
+    		try {
+    			String temp;
+	    		FileReader fileReader = new FileReader(file);
+	    		BufferedReader bufferedReader = new BufferedReader(fileReader);
+    			while ( ((temp = bufferedReader.readLine()) != null )){
+    				res = res + "\n" + temp;
+    			}
+    			fileReader.close();
+    			bufferedReader.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+    	}
+    	
+    	return res;
+    }
+    
+    
     public void write_log2file(String log_file_name){
     	update_preference();
     	if (need_sd_log){
-	     	SimpleDateFormat   formatter   =   new   SimpleDateFormat   ("yyyy-MM-dd HH-mm-ss");     
+	     	SimpleDateFormat   formatter   =   new   SimpleDateFormat   ("yyyy-MM-dd HH_mm_ss");     
 	    	Date   curDate   =   new   Date(System.currentTimeMillis());//获取当前时间     
 	    	String   log_file_date   =   formatter.format(curDate); 
 	    	String full_log_filename = log_file_name + "_" + log_file_date + ".txt";
@@ -344,6 +414,12 @@ public class WifiRobotActivity extends Activity {
 	    		BufferedWriter bufWriter = new BufferedWriter(filerWriter); 
 	    		for (int cnt = 0; cnt < pass_cnt; cnt++){
 	    			bufWriter.write(pass_log[cnt]);
+	    			bufWriter.newLine();
+	    		}
+	    		bufWriter.newLine();
+
+	    		for (int cnt = 0; cnt < SystemInfoCnt; cnt++){
+	    			bufWriter.write(SystemInfo[cnt]);
 	    			bufWriter.newLine();
 	    		}
 	    		bufWriter.close();
