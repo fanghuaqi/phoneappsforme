@@ -63,8 +63,8 @@ public class tcp_ctrl {
 			//disp_toast("Cannot Start TCP Server Server");
      	   	return;
 		}*/
-		String dist_addr = CLIENT_IP;///preferences.getString(mContext.getResources().getString(R.string.distipaddr), CLIENT_IP);
-		int dist_port = CLIENT_PORT;//Integer.parseInt((preferences.getString(mContext.getResources().getString(R.string.disttcpport), String.valueOf(CLIENT_PORT) )));
+		String dist_addr = preferences.getString(mContext.getResources().getString(R.string.distipaddr), CLIENT_IP);
+		int dist_port = Integer.parseInt((preferences.getString(mContext.getResources().getString(R.string.disttcpport), String.valueOf(CLIENT_PORT) )));
 		
 		mTcp_ctrl_client = new tcp_ctrl_client(currentContext, mHandler_Client, dist_addr, dist_port);
 		if (!mTcp_ctrl_client.isSocketOK()){
