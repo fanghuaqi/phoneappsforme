@@ -389,13 +389,15 @@ public class WifiRobotActivity extends Activity {
 	    	Date   curDate   =   new   Date(System.currentTimeMillis());//获取当前时间     
 	    	String   log_file_date   =   formatter.format(curDate); 
 	    	String full_log_filename = log_file_name + "_" + log_file_date + ".txt";
+	    	String log_file_path= "";
 	    	
 	    	String sd_status = Environment.getExternalStorageState();
-	    	if (sd_status.equals(Environment.MEDIA_UNMOUNTED)){
-	    		disp_toast("SD卡没有挂载,无法写入日志文件到"+MYLOG_PATH_SD+"目录下!");
-	    		return;
+	    	if (!(sd_status.equals(Environment.MEDIA_MOUNTED))){
+	    		log_file_path = "/mnt/flash" + File.separator + MYLOG_PATH_SD;
+	    		disp_toast("SD卡没有挂载,日志文件将写入到"+log_file_path+"目录下!");
+	    	}else{
+	    		 log_file_path = Environment.getExternalStorageDirectory() + File.separator +MYLOG_PATH_SD;
 	    	}
-	    	String log_file_path = Environment.getExternalStorageDirectory() + File.separator +MYLOG_PATH_SD;
 	    	File log_file_Dir = new File(log_file_path);
 	    	File log_file = new File(log_file_path, full_log_filename);
 	    	try{

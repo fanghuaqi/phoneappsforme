@@ -17,14 +17,14 @@
 
         <EditTextPreference
             android:defaultValue="192.168.0.10"
-            android:enabled="false"
+            android:enabled="true"
             android:key="@string/distipaddr"
             android:summary="设置主机端的IP地址"
             android:title="目标IP地址" />
 
         <EditTextPreference
             android:defaultValue="1234"
-            android:enabled="false"
+            android:enabled="true"
             android:key="@string/disttcpport"
             android:summary="设置主机端TCP服务器开启的端口"
             android:title="TCP 主机端口" />
