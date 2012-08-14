@@ -865,23 +865,35 @@ public class WifiRobotActivity extends Activity {
     	
     	try {
     		m_video_addr = url_addr;
+			Log.d(TAG, "start get url");
     		m_video_url = new URL(m_video_addr);
+    		Log.d(TAG, "open connection");
+
 			m_video_conn = (HttpURLConnection)m_video_url.openConnection();
-			m_video_conn.connect();
+			Log.d(TAG, "begin connect");
+
+			//m_video_conn.connect();
+			Log.d(TAG, "get InputStream");
+
 			m_InputStream = m_video_conn.getInputStream();
+			Log.d(TAG, "decodeStream");
 			Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
 			//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
-			
+			Log.d(TAG, "decodeStream end");
+
 			img_camera.setImageBitmap(bmp);
 			flag = true;
 		} catch (Exception e) {
 			disp_toast("获取图像数据失败,请确认图像网址是否正确!");
 			Log.e(TAG, "Error In Get Image Msg:" + e.getMessage());
 			flag = false;
+		}finally{
+			if (m_video_conn != null){
+				m_video_conn.disconnect();
+			}
 		}
-    	if (m_video_conn != null){
-			m_video_conn.disconnect();
-		}
+		
+    	
     	return flag;
     }
     
@@ -1329,7 +1341,9 @@ public class WifiRobotActivity extends Activity {
     		try{
 				m_video_url = new URL(m_video_addr);
 				m_video_conn = (HttpURLConnection)m_video_url.openConnection();
-				m_video_conn.connect();
+				//m_video_conn.connect();
+									//m_video_conn.setConnectTimeout(10);
+
 				m_InputStream = m_video_conn.getInputStream();
 				Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
 				if (bmp == null){
@@ -1349,18 +1363,22 @@ public class WifiRobotActivity extends Activity {
     	
     	public void run(){
     		try {
-				while(!exit_flag){
-					m_video_url = new URL(m_video_addr);
+    			m_video_url = new URL(m_video_addr);
+				//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
+				//m_video_conn.connect();
+				while(!exit_flag){	
 					m_video_conn = (HttpURLConnection)m_video_url.openConnection();
-					m_video_conn.connect();
+					m_video_conn.setDoOutput(true);
+					m_video_conn.setDoOutput(true);
+					//m_video_conn.setConnectTimeout(10);
 					m_InputStream = m_video_conn.getInputStream();
 					Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
-					//if (bmp != null){
-					img_camera_bmp = bmp;
-					//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
-					video_Handler.obtainMessage(MSG_VIDEO_UPDATE) .sendToTarget();
+					if (bmp != null){
+						img_camera_bmp = bmp;
+						//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
+						video_Handler.obtainMessage(MSG_VIDEO_UPDATE) .sendToTarget();
 						//img_camera.setImageBitmap(img_camera_bmp);
-					//}
+					}
 					sleep(35);
 				}
 				exit_flag = false;
@@ -1368,6 +1386,10 @@ public class WifiRobotActivity extends Activity {
 				video_flag = false;
 				Log.e(TAG, "Error In Get Video Msg:" + e.getMessage());
 				video_Handler.obtainMessage(MSG_VIDEO_ERROR) .sendToTarget();
+			}finally{
+				if (m_video_conn != null){
+					m_video_conn.disconnect();
+				}
 			}
     	}
     }

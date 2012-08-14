@@ -62,7 +62,7 @@ public class tcp_ctrl_client extends Thread {
 		mContext = currentContext;
 		
 		try {
-			//if(D) Log.d(TAG, "Try Connect to TCP Server @" + ip + ":" + port); 
+			if(D) Log.d(TAG, "Try Connect to TCP Server @" + ip + ":" + port); 
 
 			tcp_send_msg_queue = new LinkedList<byte[]>();
 			tcp_rec_msg_queue = new LinkedList<byte[]>();
@@ -70,9 +70,9 @@ public class tcp_ctrl_client extends Thread {
 			rec_msg_handle.start();
 			//if(D) Log.d(TAG, "tcp receive handler start"); 
 
-			InetAddress tcpserver_Addr = InetAddress.getByName(ip);
-			clentSocketAddr = new InetSocketAddress(tcpserver_Addr, port);
-			clientSocket = new Socket();
+			//InetAddress tcpserver_Addr = InetAddress.getByName(ip);
+			//clentSocketAddr = new InetSocketAddress(tcpserver_Addr, port);
+			//clientSocket = new Socket();
 			//if(D) Log.d(TAG, "tcp socket connect success" ); 
 
 			//clientSocket.setSoTimeout(RW_TIMEOUT);
@@ -88,7 +88,7 @@ public class tcp_ctrl_client extends Thread {
 
 			//disp_toast("Connect to Server @" + ip + ":" + port);
 		} catch (Exception e) {
-			//if(D) Log.d(TAG, "tcp socket connect fail" ); 
+			if(D) Log.d(TAG, "tcp socket connect fail" ); 
 
 			socketOK  = false;
 			//disp_toast("Can't Connect to Server @" + ip + ":" + port);
@@ -100,13 +100,17 @@ public class tcp_ctrl_client extends Thread {
 	public boolean tcp_connect(){
 		if (!tcp_connect_try){
 			try{
-				clientSocket.connect(clentSocketAddr, TCP_CON_TOUT);
+				InetAddress tcpserver_Addr = InetAddress.getByName(IP);
+
+				clientSocket = new Socket(tcpserver_Addr, PORT);
+				//clientSocket.connect(clentSocketAddr, TCP_CON_TOUT);
 				clientSocket.setSoTimeout(RW_TIMEOUT);
 				socket_output = clientSocket.getOutputStream();
 				socket_input = clientSocket.getInputStream();
 				if(D) Log.d(TAG, "Connect to Server @" + IP + ":" + PORT); 
 				disp_toast("Connect to Server @" + IP + ":" + PORT);
 				socketOK = true;
+				start();
 			}catch (Exception e) {
 				socketOK  = false;
 				disp_toast("Can't Connect to Server @" + IP + ":" + PORT);

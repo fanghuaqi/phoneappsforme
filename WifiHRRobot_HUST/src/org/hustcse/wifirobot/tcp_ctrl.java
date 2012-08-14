@@ -71,10 +71,12 @@ public class tcp_ctrl {
 			Log.e(TAG,"TCP Client NOT STARTED");
 			//disp_toast("Cannot Start TCP Client Server");
      	   	return;
+		}else{
+			mTcp_ctrl_client.start();
 		}
 		
  		//mTcp_ctrl_server.start();
-		mTcp_ctrl_client.start();
+		
 	}
 	
 	private void disp_toast(String msg){
