@@ -86,6 +86,7 @@ public class WifiRobotActivity extends Activity {
 	
 	final static int MSG_VIDEO_UPDATE = 1;
 	final static int MSG_VIDEO_ERROR = 2;
+	final static int MSG_VIDEO_END = 3;
 
 
 
@@ -662,7 +663,15 @@ public class WifiRobotActivity extends Activity {
 					break;
 				case MSG_VIDEO_ERROR:
 					((Button)findViewById(R.id.button_video)).setText(R.string.button_video_start);
-					disp_toast("获取视频数据失败,请确认视频网址是否正确!");
+					disp_toast("Getting remote video failed,please check the video address!");
+					//disp_toast("获取视频数据失败,请确认视频网址是否正确!");
+					img_camera.setImageResource(R.drawable.zynq_logo);
+					break;
+				case MSG_VIDEO_END:
+					((Button)findViewById(R.id.button_video)).setText(R.string.button_video_start);
+					//disp_toast("Getting remote video failed,please check the video address!");
+					img_camera.setImageResource(R.drawable.zynq_logo);
+					//disp_toast("获取视频数据失败,请确认视频网址是否正确!");
 					break;
 				default:
 					break;
@@ -838,6 +847,7 @@ public class WifiRobotActivity extends Activity {
 								m_DrawVideo.stop();
 							}
 							btn.setText(R.string.button_video_start);
+							img_camera.setImageResource(R.drawable.zynq_logo);
 							video_flag = false;
 /*							video_flag = false;
 							vlcmediaPlayer.reset();
@@ -865,7 +875,7 @@ public class WifiRobotActivity extends Activity {
     	HttpURLConnection m_video_conn = null;
     	InputStream m_InputStream= null;
     	HttpGet httpRequest;
-    	HttpClient httpclient;
+    	HttpClient httpclient = null;
     	HttpResponse httpResponse;
     	Bitmap bmp = null;
     			
@@ -905,6 +915,9 @@ public class WifiRobotActivity extends Activity {
 		}finally{
 			if (m_video_conn != null){
 				m_video_conn.disconnect();
+			}
+			if ((httpclient != null) && (httpclient.getConnectionManager() != null)){
+				httpclient.getConnectionManager().shutdown(); /*及时关闭httpclient释放资源*/
 			}
 		}
 		
@@ -1289,7 +1302,7 @@ public class WifiRobotActivity extends Activity {
     	private InputStream m_InputStream;
     	private Handler 		video_Handler;
     	HttpGet httpRequest;
-    	HttpClient httpclient;
+    	HttpClient httpclient = null;
     	HttpResponse httpResponse;
     	Bitmap bmp = null;
     	private boolean exit_flag = false;
@@ -1331,6 +1344,9 @@ public class WifiRobotActivity extends Activity {
     		if (m_video_conn != null){
     			m_video_conn.disconnect();
     		}
+			if ((httpclient != null) && (httpclient.getConnectionManager() != null)){
+				httpclient.getConnectionManager().shutdown(); /*及时关闭httpclient释放资源*/
+			}
     		return flag;
     	}
     	
@@ -1371,6 +1387,10 @@ public class WifiRobotActivity extends Activity {
 				if (m_video_conn != null){
 					m_video_conn.disconnect();
 				}
+				if ((httpclient != null) && (httpclient.getConnectionManager() != null)){
+					httpclient.getConnectionManager().shutdown(); /*及时关闭httpclient释放资源*/
+				}
+				video_Handler.obtainMessage(MSG_VIDEO_END) .sendToTarget();
 			}
     	}
     }
