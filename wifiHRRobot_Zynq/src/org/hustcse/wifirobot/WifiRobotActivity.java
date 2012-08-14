@@ -8,15 +8,16 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.net.URL;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.security.auth.callback.Callback;
-
-import org.apache.http.HttpClientConnection;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.util.EntityUtils;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -41,8 +42,8 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
-import android.preference.Preference.OnPreferenceChangeListener;
 import android.preference.PreferenceManager;
+import android.provider.ContactsContract.RawContacts.Entity;
 import android.util.Log;
 import android.view.Display;
 import android.view.KeyEvent;
@@ -249,8 +250,8 @@ public class WifiRobotActivity extends Activity {
         
         tcp_ctrl_obj = new tcp_ctrl(getApplicationContext(), mHandler_UDP_SEND_MSG);
         log_pass_time("tcp ok");
-        udp_ctrl_obj = new udp_ctrl(getApplicationContext(), mHandler_UDP_MSG);
-        log_pass_time("udp ok");
+        //udp_ctrl_obj = new udp_ctrl(getApplicationContext(), mHandler_UDP_MSG);
+        //log_pass_time("udp ok");
                 
         mContext = getApplicationContext();
         
@@ -863,22 +864,34 @@ public class WifiRobotActivity extends Activity {
     	URL m_video_url = null;
     	HttpURLConnection m_video_conn = null;
     	InputStream m_InputStream= null;
-    	
+    	HttpGet httpRequest;
+    	HttpClient httpclient;
+    	HttpResponse httpResponse;
+    	Bitmap bmp = null;
+    			
+
     	try {
     		m_video_addr = url_addr;
 			Log.d(TAG, "start get url");
-    		m_video_url = new URL(m_video_addr);
+    		//m_video_url = new URL(m_video_addr);
+			httpRequest = new HttpGet(m_video_addr);  
+
     		Log.d(TAG, "open connection");
+			httpclient = new DefaultHttpClient();  
 
-			m_video_conn = (HttpURLConnection)m_video_url.openConnection();
+			//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
 			Log.d(TAG, "begin connect");
-
+			httpResponse = httpclient.execute(httpRequest); 
 			//m_video_conn.connect();
 			Log.d(TAG, "get InputStream");
-
-			m_InputStream = m_video_conn.getInputStream();
-			Log.d(TAG, "decodeStream");
-			Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+			if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK){
+					Log.d(TAG, "decodeStream");
+					m_InputStream = httpResponse.getEntity().getContent();
+					bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+			}
+			//m_InputStream = m_video_conn.getInputStream();
+			
+			//Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
 			//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
 			Log.d(TAG, "decodeStream end");
 
@@ -1223,59 +1236,7 @@ public class WifiRobotActivity extends Activity {
 				gray_mean = (int) (gray_sum / area);// 整个图的灰度平均值
 				u = gray_mean;
 				Log.i(TAG, "整个图的灰度平均值:" + (u & 0xff));
-				/*for (int i = 0; i < height; i++) // 计算整个图的二值化阈值
-				{
-					for (int j = 0; j < width; j++) {
-						if (picPixels[(i * width) + j] < gray_mean) {
-							graybackmean += picPixels[(i * width) + j];
-							back++;
-						} else {
-							grayfrontmean += picPixels[(i * width) + j];
-							front++;
-						}
-					}
-				}
-				int frontvalue = (int) (grayfrontmean / front);// 前景中心
-				int backvalue = (int) (graybackmean / back);// 背景中心
-				float G[] = new float[frontvalue - backvalue + 1];// 方差数组
-				int s = 0;
-				Log.i(TAG, "前景中心:" + (frontvalue & 0xff));
-				Log.i(TAG, "背景中心:" + (backvalue & 0xff));
 
-				for (int i1 = backvalue; i1 < frontvalue + 1; i1++)// 以前景中心和背景中心为区间采用大津法算法
-				{
-					back = 0;
-					front = 0;
-					grayfrontmean = 0;
-					graybackmean = 0;
-					for (int i = 0; i < height; i++) {
-						for (int j = 0; j < width; j++) {
-							if (picPixels[(i * width) + j] < (i1 + 1)) {
-								graybackmean += picPixels[(i * width) + j];
-								back++;
-							} else {
-								grayfrontmean += picPixels[(i * width) + j];
-								front++;
-							}
-						}
-					}
-					grayfrontmean = (int) (grayfrontmean / front);
-					graybackmean = (int) (graybackmean / back);
-					G[s] = (((float) back / area) * (graybackmean - u)
-							* (graybackmean - u) + ((float) front / area)
-							* (grayfrontmean - u) * (grayfrontmean - u));
-					s++;
-				}
-				float max = G[0];
-				int index = 0;
-				for (int i = 1; i < frontvalue - backvalue + 1; i++) {
-					if (max < G[i]) {
-						max = G[i];
-						index = i;
-					}
-				}
-				
-				threshold = index + backvalue; */
 				threshold = u;
 				if (threshold == 0){
 					threshold += 1;
@@ -1327,6 +1288,10 @@ public class WifiRobotActivity extends Activity {
     	private HttpURLConnection m_video_conn;
     	private InputStream m_InputStream;
     	private Handler 		video_Handler;
+    	HttpGet httpRequest;
+    	HttpClient httpclient;
+    	HttpResponse httpResponse;
+    	Bitmap bmp = null;
     	private boolean exit_flag = false;
     	
     	public DrawVideo(String url_addr, Handler handler){
@@ -1341,13 +1306,19 @@ public class WifiRobotActivity extends Activity {
     	public boolean testconnection(){
     		boolean flag = false;
     		try{
-				m_video_url = new URL(m_video_addr);
-				m_video_conn = (HttpURLConnection)m_video_url.openConnection();
+				//m_video_url = new URL(m_video_addr);
+				//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
 				//m_video_conn.connect();
-									//m_video_conn.setConnectTimeout(10);
+    			//m_video_conn.setConnectTimeout(10);
+    			//m_InputStream = m_video_conn.getInputStream();
 
-				m_InputStream = m_video_conn.getInputStream();
-				Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+    			httpRequest = new HttpGet(m_video_addr);  
+				httpclient = new DefaultHttpClient();  
+				httpResponse = httpclient.execute(httpRequest); 
+				if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK){
+					m_InputStream = httpResponse.getEntity().getContent();
+					bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+				}
 				if (bmp == null){
 					flag = false;
 				}else{
@@ -1365,23 +1336,31 @@ public class WifiRobotActivity extends Activity {
     	
     	public void run(){
     		try {
-    			m_video_url = new URL(m_video_addr);
+    			//m_video_url = new URL(m_video_addr);
 				//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
 				//m_video_conn.connect();
+    			//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
+				//m_video_conn.setDoOutput(true);
+				//m_video_conn.setDoOutput(true);
+				//m_video_conn.setConnectTimeout(10);
+				//m_InputStream = m_video_conn.getInputStream();
+
+    			httpRequest = new HttpGet(m_video_addr);  
+				httpclient = new DefaultHttpClient();  
+
 				while(!exit_flag){	
-					m_video_conn = (HttpURLConnection)m_video_url.openConnection();
-					m_video_conn.setDoOutput(true);
-					m_video_conn.setDoOutput(true);
-					//m_video_conn.setConnectTimeout(10);
-					m_InputStream = m_video_conn.getInputStream();
-					Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+					httpResponse = httpclient.execute(httpRequest);  
+					
+					if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK){
+						m_InputStream = httpResponse.getEntity().getContent();
+						bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+					}
+					
 					if (bmp != null){
 						img_camera_bmp = bmp;
-						//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
 						video_Handler.obtainMessage(MSG_VIDEO_UPDATE) .sendToTarget();
-						//img_camera.setImageBitmap(img_camera_bmp);
 					}
-					sleep(35);
+					sleep(30);
 				}
 				exit_flag = false;
 			} catch (Exception e) {
