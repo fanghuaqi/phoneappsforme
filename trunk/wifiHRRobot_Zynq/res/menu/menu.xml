@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+
+    <!--
+         <item android:id="@+id/SetLCDWithPic" android:title="将图片显示到液晶上"></item>
+    <item android:id="@+id/SetLCDClrScreen" android:title="液晶清屏"></item>
+    <item android:id="@+id/SetLCDString" android:title="液晶字符显示"></item>
+    -->
+    <item
+        android:id="@+id/Settings"
+        android:title="Settings">
+    </item>
+
+</menu>
