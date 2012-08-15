@@ -11,5 +11,7 @@
     <string name="playersel">playersel</string>
     <string name="disttcpport">disttcpport</string>
     <string name="needsdlog">needsdlog</string>
+    <string name="tcpstate_online">Online</string>
+    <string name="tcpstate_offline">Offline</string>
 
 </resources>
