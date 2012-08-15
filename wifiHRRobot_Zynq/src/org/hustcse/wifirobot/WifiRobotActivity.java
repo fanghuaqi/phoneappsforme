@@ -92,6 +92,8 @@ public class WifiRobotActivity extends Activity {
 	
 	final static int MSG_DATA_REC = 1;
 	final static int MSG_DISPLAY_TOAST = 100;
+	final static int MSG_FIX_PREFERENCE = 1000;
+	final static int FIX_IP_PREFERENCE = 0;
 
     ProgressDialog mDialog_Connect, mDialog_ImageCap, mDialog_VideoCap;
 	private static final int CONNECT_DIALOG_KEY = 0;
@@ -142,7 +144,7 @@ public class WifiRobotActivity extends Activity {
 	Bitmap img_camera_bmp;
 	boolean video_flag = false;
 	JoystickView joystick;
-	TextView txtAngle, txtSpeed;
+	TextView txtAngle, txtSpeed,txtTCPState;
 	int operate_angle_last = 0;
 	int operate_speed_last = 0;
 	int operate_angle = 0;
@@ -241,6 +243,7 @@ public class WifiRobotActivity extends Activity {
         joystick = (JoystickView)findViewById(R.id.joystickView);
         txtAngle = (TextView)findViewById(R.id.TextViewX);
         txtSpeed = (TextView)findViewById(R.id.TextViewY);
+        txtTCPState = (TextView)findViewById(R.id.TextViewTCPState);
 
         btn_image.getBackground().setAlpha(100); /*设置透明度为半透明 alpha 0-255*/
         btn_video.getBackground().setAlpha(100); /*设置透明度为半透明*/
@@ -260,8 +263,10 @@ public class WifiRobotActivity extends Activity {
         
         ((TextView)findViewById(R.id.TextViewAngle)).setTextSize(screen_Width / txtview_scale);
         ((TextView)findViewById(R.id.TextViewSpeed)).setTextSize(screen_Width / txtview_scale);
+        ((TextView)findViewById(R.id.TextViewTCPStateTxt)).setTextSize(screen_Width / txtview_scale);
         txtAngle.setTextSize(screen_Width / txtview_scale);
         txtSpeed.setTextSize(screen_Width / txtview_scale);
+        txtTCPState.setTextSize(screen_Width / txtview_scale);
         
         btn_image.setOnClickListener(image_acquire_listener);
         btn_video.setOnClickListener(video_acquire_listener);
@@ -273,13 +278,18 @@ public class WifiRobotActivity extends Activity {
         
         log_pass_time("all objects init ok");
         
-        tcp_ctrl_obj = new tcp_ctrl(getApplicationContext(), mHandler_UDP_SEND_MSG);
+        update_preference();
+        tcp_ctrl_obj = new tcp_ctrl(getApplicationContext(), mHandler_UDP_SEND_MSG,dist_tcp_addr,dist_tcp_port);
         log_pass_time("tcp ok");
         //udp_ctrl_obj = new udp_ctrl(getApplicationContext(), mHandler_UDP_MSG);
         //log_pass_time("udp ok");
                 
-        mContext = getApplicationContext();
-        
+        mContext = getApplicationContext();        
+        if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()){
+        	txtTCPState.setText(R.string.tcpstate_online);
+        }else{
+        	txtTCPState.setText(R.string.tcpstate_offline);
+        }
 
         img_camera_bmp = Bitmap.createBitmap(img_width, img_height, img_cfg);
         //Bitmap bitmap_rgb = bitmap_cp.copy(img_cfg, true);
@@ -485,10 +495,18 @@ public class WifiRobotActivity extends Activity {
 	}
     
     public void update_preference(){
+    	int temp;
     	try {
 			vlc_video_addr = preferences.getString(getResources().getString(R.string.vlcaddr), VLC_VIDEO_ADDR);
 			dist_tcp_addr = preferences.getString(getResources().getString(R.string.distipaddr), DIST_TCPIPADDR);
-			dist_tcp_port = Integer.parseInt( (preferences.getString(getResources().getString(R.string.disttcpport), String.valueOf(DIST_TCPPORT))) );
+			try{
+				temp = Integer.parseInt( (preferences.getString(getResources().getString(R.string.disttcpport), String.valueOf(DIST_TCPPORT))) );
+				dist_tcp_port = temp;
+			}catch (Exception e) {
+				SharedPreferences.Editor editor = preferences.edit(); 
+				editor.putString(getResources().getString(R.string.disttcpport), String.valueOf(dist_tcp_port));
+				editor.commit();
+			}
 			vlc_video_mode = true;//preferences.getBoolean(getResources().getString(R.string.vlcvideostate), false);
 			player_sel = false;//preferences.getBoolean(getResources().getString(R.string.playersel), false);
 			need_sd_log = false;//preferences.getBoolean(getResources().getString(R.string.needsdlog), false);
@@ -570,7 +588,7 @@ public class WifiRobotActivity extends Activity {
 	
 	/*测试是否角度和速度没有改变 并发送控制小车命令*/
 	private void checkSendOperateCarMsg(){
-		tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
+		//tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
 		if (! ((operate_angle == operate_angle_last)  && (operate_speed == operate_speed_last))){
 			if ((!follow_road_flag) && (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK())){ /*非巡线模式才可以进行遥控 并且当前socket可用才进行数据发送*/
 				postOperateCarMessage(operate_angle, operate_speed);
@@ -682,7 +700,12 @@ public class WifiRobotActivity extends Activity {
 				case MSG_DISPLAY_TOAST:
 					disp_toast((String) msg.obj);
 					break;
-					
+				case (MSG_FIX_PREFERENCE+FIX_IP_PREFERENCE):
+					String ip = (String) msg.obj;
+					SharedPreferences.Editor editor = preferences.edit(); 
+					editor.putString(getResources().getString(R.string.distipaddr), ip);
+					editor.commit();
+					break;
 				default:
 					break;
 			}
@@ -770,6 +793,7 @@ public class WifiRobotActivity extends Activity {
  
 	private OnClickListener connect_listener = new OnClickListener() {
         public void onClick(View v) {
+        	update_preference();
         	showDialog(CONNECT_DIALOG_KEY);
         }
     };
@@ -798,8 +822,22 @@ public class WifiRobotActivity extends Activity {
     // Define the Handler that receives messages from the thread and update the progress
     final Handler progress_handler = new Handler() {
         public void handleMessage(Message msg) {
-            dismissDialog(msg.what);
+            
+        	if (msg.what <= VIDEOCAP_DIALOG_KEY){
+        		dismissDialog(msg.what);
+        	}
+
             switch (msg.what) {
+            	case CONNECT_DIALOG_KEY:
+            		if (msg.obj != null){
+            			disp_toast((String)msg.obj);
+            		}
+            		if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()){
+			        	txtTCPState.setText(R.string.tcpstate_online);
+			        }else{
+			        	txtTCPState.setText(R.string.tcpstate_offline);
+			        }
+            		break;
 				case IMGCAP_DIALOG_KEY:
 					image_ready_flag = (Boolean)(msg.obj);
 
@@ -821,6 +859,8 @@ public class WifiRobotActivity extends Activity {
 						disp_toast("Getting remote video failed,please check the video address!");
 					}
 					break;
+				case MSG_DISPLAY_TOAST:
+					break;
 	
 				default:
 					break;
@@ -831,15 +871,21 @@ public class WifiRobotActivity extends Activity {
      /**  */
     private class ConnectProgressThread extends Thread {
         Handler mHandler;
+        String msg  = null;
   
         ConnectProgressThread(Handler h) {
             mHandler = h;
         }
        
         public void run() {
-            tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
-            mHandler.obtainMessage(CONNECT_DIALOG_KEY).sendToTarget();
-            
+        	if (tcp_ctrl_obj.mTcp_ctrl_client.updateIPandPort(dist_tcp_addr, dist_tcp_port) || 
+        			(tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK() == false) ){ /* if ip or port updated or socket not opened*/
+        		tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect(true);
+        	}else{
+        		msg = new String("Already Connectted to TCP Server :" + dist_tcp_addr + ":" + dist_tcp_port);
+        		//mHandler.obtainMessage(MSG_DISPLAY_TOAST).sendToTarget();
+        	}
+            mHandler.obtainMessage(CONNECT_DIALOG_KEY, msg).sendToTarget();            
         }        
     }
     

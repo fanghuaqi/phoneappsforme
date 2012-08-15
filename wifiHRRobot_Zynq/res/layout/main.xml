@@ -145,6 +145,30 @@
                 android:textSize="25dp" >
             </TextView>
         </TableRow>
+        <TableRow>
+
+            <TextView
+                android:id="@+id/TextViewTCPStateTxt"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="10dp"
+                android:text="Robot "
+                android:gravity="center"
+                android:textColor="#CC0000"
+                android:textSize="15dp" >
+            </TextView>
+
+            <TextView
+                android:id="@+id/TextViewTCPState"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="10dp"
+                android:gravity="center"
+                android:text="@string/tcpstate_offline"
+                android:textColor="#CC0000"
+                android:textSize="15dp" >
+            </TextView>
+        </TableRow>
     </TableLayout>
 
 </FrameLayout>

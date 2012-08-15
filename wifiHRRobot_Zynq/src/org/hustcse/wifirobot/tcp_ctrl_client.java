@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.LinkedList;
 
 import android.content.Context;
@@ -21,10 +22,12 @@ public class tcp_ctrl_client extends Thread {
 	final static int receive_pool_size  =  1024;
 	final static int MSG_DATA_REC = 1;
 	final static int MSG_DISPLAY_TOAST = 100;
+	final static int MSG_FIX_PREFERENCE = 1000;
+	final static int FIX_IP_PREFERENCE = 0;
 	
 	final static int MAX_TRIES = 100;
 	final static int RW_TIMEOUT = 2000;
-	final static int TCP_CON_TOUT = 1500;
+	final static int TCP_CON_TOUT = 3000;
 
 	
 	final static short no_ack = 0;
@@ -44,6 +47,8 @@ public class tcp_ctrl_client extends Thread {
 	
 	InetAddress 	myBcastIPAddress; 		// my broadcast IP addresses
 	InetAddress 	myIPAddress; 			// my IP addresses
+	
+	InetAddress tcpserver_Addr = null;
 
 	LinkedList<byte[]>	tcp_send_msg_queue; 
 	LinkedList<byte[]>	tcp_rec_msg_queue; 
@@ -71,8 +76,16 @@ public class tcp_ctrl_client extends Thread {
 			rec_msg_handle = new receive_msg_handle(mHandler);
 			rec_msg_handle.start();
 			//if(D) Log.d(TAG, "tcp receive handler start"); 
+			PORT = port;
 
-			//InetAddress tcpserver_Addr = InetAddress.getByName(ip);
+			try {
+				tcpserver_Addr = InetAddress.getByName(ip);
+				IP = ip;
+			} catch (Exception e) {
+				String msg =  new String(ip + " is not the right ip format! TCP ip use "+ IP);
+				mHandler.obtainMessage(MSG_DISPLAY_TOAST, msg).sendToTarget();
+				mHandler.obtainMessage((MSG_FIX_PREFERENCE+FIX_IP_PREFERENCE), IP).sendToTarget();
+			}
 			//clentSocketAddr = new InetSocketAddress(tcpserver_Addr, port);
 			//clientSocket = new Socket();
 			//if(D) Log.d(TAG, "tcp socket connect success" ); 
@@ -83,29 +96,40 @@ public class tcp_ctrl_client extends Thread {
 
 			socketOK = false;
 						
-			IP = ip;
-			PORT = port;
+			
 
 			//if(D) Log.d(TAG, "Connect to Server @" + ip + ":" + port); 
 
 			//disp_toast("Connect to Server @" + ip + ":" + port);
 		} catch (Exception e) {
-			if(D) Log.d(TAG, "tcp socket connect fail" ); 
+			if(D) Log.d(TAG, "tcp init fail"); 
 			
 			socketOK  = false;
+
 			//disp_toast("Can't Connect to Server @" + ip + ":" + port);
 			//if(D) Log.e(TAG, "TCP client connect to server error:" + e.getMessage()); 
-		}
+		} 
 		tcp_connect_try = false;
 	}
 	
-	public boolean tcp_connect(){
-		if (!tcp_connect_try){
-			try{
-				InetAddress tcpserver_Addr = InetAddress.getByName(IP);
-
-				clientSocket = new Socket(tcpserver_Addr, PORT);
-				//clientSocket.connect(clentSocketAddr, TCP_CON_TOUT);
+	public boolean tcp_connect(boolean forceflag){
+		if ( (forceflag) || (!tcp_connect_try) ){
+			try { /* close previous socket */
+				if (socketOK){
+					socketOK = false;
+					stop();
+					clientSocket.close();					
+				}
+			} catch (Exception e) {
+				if(D) Log.e(TAG, "TCP stop error:" + e.getMessage()); 
+ 			}
+		
+			try{/* create new socket */
+				tcpserver_Addr = InetAddress.getByName(IP);
+				clentSocketAddr = new InetSocketAddress(tcpserver_Addr, PORT);
+				//clientSocket = new Socket(tcpserver_Addr, PORT);
+				clientSocket = new Socket();
+				clientSocket.connect(clentSocketAddr, TCP_CON_TOUT);
 				clientSocket.setSoTimeout(RW_TIMEOUT);
 				socket_output = clientSocket.getOutputStream();
 				socket_input = clientSocket.getInputStream();
@@ -130,8 +154,28 @@ public class tcp_ctrl_client extends Thread {
 		return socketOK;
 	}
 	
+	/*if ip or port updated return true*/
+	public boolean updateIPandPort(String ip, int port){
+		boolean flag = false;
+		try {
+			if (PORT != port){
+				flag = true;
+				PORT = port;
+			}			
+			tcpserver_Addr = InetAddress.getByName(ip);
+			if ((ip != null) && !(IP.equals(ip))){
+				flag = true;			
+				IP = ip;
+			}
+		} catch (Exception e) {
+			String msg =  new String(ip + " is not the right ip format! TCP ip use "+ IP);
+			mHandler.obtainMessage(MSG_DISPLAY_TOAST, msg).sendToTarget();
+			mHandler.obtainMessage((MSG_FIX_PREFERENCE+FIX_IP_PREFERENCE), IP).sendToTarget();
+		}
+		return flag;
+	}
+	
 	boolean tcpreconnect(String ip, int port){
-
 		try {
 			InetAddress tcpserver_Addr = InetAddress.getByName(ip);
 			clientSocket = new Socket(tcpserver_Addr, port);
@@ -165,7 +209,7 @@ public class tcp_ctrl_client extends Thread {
 	}
 	
 	public synchronized void post_msg(byte[] msg){
-		tcp_connect();
+		//tcp_connect(false);
 		if (!socketOK){
 			disp_toast("TCP Socket Client Is not ready!");
 			return;

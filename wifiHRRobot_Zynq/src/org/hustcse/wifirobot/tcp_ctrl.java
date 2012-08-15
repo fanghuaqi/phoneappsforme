@@ -22,6 +22,8 @@ public class tcp_ctrl {
 
 	final static int MSG_DATA_REC = 1;
 	final static int MSG_DISPLAY_TOAST = 100;
+	final static int MSG_FIX_PREFERENCE = 1000;
+	final static int FIX_IP_PREFERENCE = 0;
 
 	private SharedPreferences preferences;
 
@@ -46,9 +48,11 @@ public class tcp_ctrl {
 	InetAddress 	myBcastIPAddress; 		// my broadcast IP addresses
 	InetAddress 	myIPAddress; 			// my IP addresses
 
-	public tcp_ctrl(Context currentContext, Handler handler) {
+	public tcp_ctrl(Context currentContext, Handler handler, String client_ip, int client_port) {
 		mHandler = handler;
 		mContext = currentContext;
+		CLIENT_IP = client_ip;
+		CLIENT_PORT = client_port;
 		
 		try{
 			/*获取Wifi信息并且获取当前的ip地址*/
@@ -58,7 +62,7 @@ public class tcp_ctrl {
 		}catch (Exception e) {
 			disp_toast("Wifi Maybe Not Opened");
 		}
-		preferences = PreferenceManager.getDefaultSharedPreferences(mContext);
+		
 
 		/*mTcp_ctrl_server = new tcp_ctrl_server(currentContext, mHandler_Server, SERVER_IP, SERVER_PORT);
 		if (!mTcp_ctrl_server.isSocketOK()){
@@ -66,10 +70,9 @@ public class tcp_ctrl {
 			//disp_toast("Cannot Start TCP Server Server");
      	   	return;
 		}*/
-		String dist_addr = preferences.getString(mContext.getResources().getString(R.string.distipaddr), CLIENT_IP);
-		int dist_port = Integer.parseInt((preferences.getString(mContext.getResources().getString(R.string.disttcpport), String.valueOf(CLIENT_PORT) )));
 		
-		mTcp_ctrl_client = new tcp_ctrl_client(currentContext, mHandler_Client, dist_addr, dist_port);
+		
+		mTcp_ctrl_client = new tcp_ctrl_client(currentContext, mHandler_Client, CLIENT_IP, CLIENT_PORT);
 		if (!mTcp_ctrl_client.isSocketOK()){
 			Log.e(TAG,"TCP Client NOT STARTED");
 			//disp_toast("Cannot Start TCP Client Server");
@@ -106,6 +109,11 @@ public class tcp_ctrl {
 				case MSG_DISPLAY_TOAST:
 					if (mHandler != null){
 						mHandler.obtainMessage(MSG_DISPLAY_TOAST,msg.obj).sendToTarget();
+					}
+					break;
+				case (MSG_FIX_PREFERENCE+FIX_IP_PREFERENCE):
+					if (mHandler != null){
+						mHandler.obtainMessage(msg.what,msg.obj).sendToTarget();
 					}
 					break;
 				default:
