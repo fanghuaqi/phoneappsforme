@@ -93,9 +93,10 @@ public class WifiRobotActivity extends Activity {
 	final static int MSG_DATA_REC = 1;
 	final static int MSG_DISPLAY_TOAST = 100;
 
-    ProgressDialog mDialog;
+    ProgressDialog mDialog_Connect, mDialog_ImageCap, mDialog_VideoCap;
 	private static final int CONNECT_DIALOG_KEY = 0;
-
+	private static final int IMGCAP_DIALOG_KEY = 1;
+	private static final int VIDEOCAP_DIALOG_KEY = 2;
 
 	Button btn_image;
 	Button btn_video;
@@ -117,7 +118,9 @@ public class WifiRobotActivity extends Activity {
 	private String vlc_video_addr; 
 	private boolean vlc_video_flag = false;
 	private boolean player_sel = false;
-	
+	private boolean image_ready_flag = false;
+	private boolean video_ready_flag = false;
+
 	private String target_ipaddr ;
 	
 	short tcp_ctrl_code;
@@ -296,7 +299,6 @@ public class WifiRobotActivity extends Activity {
         
         log_pass_time("joystick ok");
 
-        mDialog = new ProgressDialog(this);
         
     	end_time = System.currentTimeMillis();
     	
@@ -745,13 +747,23 @@ public class WifiRobotActivity extends Activity {
 	
     protected Dialog onCreateDialog(int id) {
         switch(id) {
-        case CONNECT_DIALOG_KEY:
-            mDialog = new ProgressDialog(WifiRobotActivity.this);
-            mDialog.setMessage("Try Connect to TCP Server ....");
-            mDialog.setCancelable(false);
-            return mDialog;
-        default:
-            return null;
+	        case CONNECT_DIALOG_KEY:
+	            mDialog_Connect = new ProgressDialog(WifiRobotActivity.this);
+	            mDialog_Connect.setMessage("Trying to connect to TCP server ....");
+	            mDialog_Connect.setCancelable(false);
+	            return mDialog_Connect;
+	        case IMGCAP_DIALOG_KEY:
+	        	mDialog_ImageCap = new ProgressDialog(WifiRobotActivity.this);
+	            mDialog_ImageCap.setMessage("Trying to capture image from car camera ....");
+	            mDialog_ImageCap.setCancelable(false);
+	            return mDialog_ImageCap;
+	        case VIDEOCAP_DIALOG_KEY:
+	        	mDialog_VideoCap = new ProgressDialog(WifiRobotActivity.this);
+	            mDialog_VideoCap.setMessage("Trying to capture video from car camera ....");
+	            mDialog_VideoCap.setCancelable(false);
+	            return mDialog_VideoCap;
+	        default:
+	            return null;
         }
     }
     
@@ -759,43 +771,110 @@ public class WifiRobotActivity extends Activity {
 	private OnClickListener connect_listener = new OnClickListener() {
         public void onClick(View v) {
         	showDialog(CONNECT_DIALOG_KEY);
-
-        	//tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
-        	
-
-
         }
     };
     
     @Override
     protected void onPrepareDialog(int id, Dialog dialog) {
-        
-            ProgressThread progressThread = new ProgressThread(phandler);
-            progressThread.start();
+        switch(id) {
+	        case CONNECT_DIALOG_KEY:
+	        	ConnectProgressThread mConnectProgressThread = new ConnectProgressThread(progress_handler);
+	        	mConnectProgressThread.start();
+	            break;
+	        case IMGCAP_DIALOG_KEY:
+	        	ImageCapProgressThread mCapProgressThread = new ImageCapProgressThread(progress_handler, IMGCAP_DIALOG_KEY);
+	        	mCapProgressThread.start();
+	        	break;
+	        case VIDEOCAP_DIALOG_KEY:
+	        	ImageCapProgressThread mCapProgressThread2 = new ImageCapProgressThread(progress_handler, VIDEOCAP_DIALOG_KEY);
+	        	mCapProgressThread2.start();
+	        	break;
+	        default:
+	            break;
+        }
+            
     }
     
     // Define the Handler that receives messages from the thread and update the progress
-    final Handler phandler = new Handler() {
+    final Handler progress_handler = new Handler() {
         public void handleMessage(Message msg) {
-            dismissDialog(CONNECT_DIALOG_KEY);
+            dismissDialog(msg.what);
+            switch (msg.what) {
+				case IMGCAP_DIALOG_KEY:
+					image_ready_flag = (Boolean)(msg.obj);
+
+					if  ( image_ready_flag == true){
+						img_camera.setImageBitmap(img_camera_bmp);						
+					}else{
+						disp_toast("Getting remote image failed,please check the video address!");
+					}
+					break;
+				case VIDEOCAP_DIALOG_KEY:
+					video_ready_flag = (Boolean)(msg.obj);
+					if  ( video_ready_flag == true){
+						img_camera.setImageBitmap(img_camera_bmp);
+						m_DrawVideo = new DrawVideo(vlc_video_addr,mHandler_video_process);
+						m_DrawVideo.start();
+						btn_video.setText(R.string.button_video_stop);
+						video_flag = true;
+					}else{
+						disp_toast("Getting remote video failed,please check the video address!");
+					}
+					break;
+	
+				default:
+					break;
+			}
         }
     };
     
-     /** Nested class that performs progress calculations (counting) */
-    private class ProgressThread extends Thread {
+     /**  */
+    private class ConnectProgressThread extends Thread {
         Handler mHandler;
-       
-       
-        ProgressThread(Handler h) {
+  
+        ConnectProgressThread(Handler h) {
             mHandler = h;
         }
        
         public void run() {
             tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
-            mHandler.obtainMessage().sendToTarget();
+            mHandler.obtainMessage(CONNECT_DIALOG_KEY).sendToTarget();
             
+        }        
+    }
+    
+    private class ImageCapProgressThread extends Thread {
+        Handler mHandler;
+        boolean image_ok = false;
+        int dialog_key;
+
+        ImageCapProgressThread(Handler h, int id) {
+            mHandler = h;
+            dialog_key = id;
         }
-        
+       
+        public void run() {
+        	image_ok = get_remote_image(vlc_video_addr) ;
+            mHandler.obtainMessage(dialog_key, image_ok).sendToTarget();
+            
+        }        
+    }
+    
+    private class VideoCapProgressThread extends Thread {
+        Handler mHandler;
+        boolean image_ok;
+  
+        VideoCapProgressThread(Handler h) {
+            mHandler = h;
+        }
+       
+        public void run() {
+            if (get_remote_image(vlc_video_addr) == true){
+            	
+            }
+            mHandler.obtainMessage(IMGCAP_DIALOG_KEY).sendToTarget();
+            
+        }        
     }
 	
     private OnClickListener image_acquire_listener = new OnClickListener() {
@@ -890,7 +969,7 @@ public class WifiRobotActivity extends Activity {
 					ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.read_request, ctrl_prefixs.mass_data_request,ctrl_prefixs.withack);
 					ctrl_cmd = (short) (ctrlcmds.ACQUIRE_CAMERA_IMAGE);	
 				}else{
-					get_remote_image(vlc_video_addr);
+					showDialog(IMGCAP_DIALOG_KEY);
 					return;
 				}
 				
@@ -925,15 +1004,24 @@ public class WifiRobotActivity extends Activity {
 								img_camera.setVisibility(View.VISIBLE);
 								surface_vlc.setVisibility(View.INVISIBLE);
 							}*/
-							m_DrawVideo = new DrawVideo(vlc_video_addr,mHandler_video_process);
-							if (m_DrawVideo.testconnection() == true){
+							showDialog(VIDEOCAP_DIALOG_KEY);
+							/*if (video_ready_flag == true){
+								m_DrawVideo = new DrawVideo(vlc_video_addr,mHandler_video_process);
 								m_DrawVideo.start();
 								btn.setText(R.string.button_video_stop);
 								video_flag = true;
 							}else{
-								//disp_toast("获取视频数据失败,请确认视频网址是否正确!");
 								disp_toast("Getting remote video failed,please check the video address!");
-							}
+							}*/
+//							m_DrawVideo = new DrawVideo(vlc_video_addr,mHandler_video_process);
+//							if (m_DrawVideo.testconnection() == true){
+//								m_DrawVideo.start();
+//								btn.setText(R.string.button_video_stop);
+//								video_flag = true;
+//							}else{
+//								//disp_toast("获取视频数据失败,请确认视频网址是否正确!");
+//								disp_toast("Getting remote video failed,please check the video address!");
+//							}
 						}else{
 							if (m_DrawVideo != null){
 								m_DrawVideo.exit_thread();
@@ -977,14 +1065,12 @@ public class WifiRobotActivity extends Activity {
     	boolean flag = false;
     	
     	String m_video_addr = "http://115.156.219.39:8080/?action=stream"; 
-    	URL m_video_url = null;
     	HttpURLConnection m_video_conn = null;
     	InputStream m_InputStream= null;
     	HttpGet httpRequest;
     	HttpClient httpclient = null;
     	HttpResponse httpResponse;
-    	Bitmap bmp = null;
-    			
+   			
 
     	try {
     		m_video_addr = url_addr;
@@ -1003,7 +1089,7 @@ public class WifiRobotActivity extends Activity {
 			if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK){
 					Log.d(TAG, "decodeStream");
 					m_InputStream = httpResponse.getEntity().getContent();
-					bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
+					img_camera_bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
 			}
 			//m_InputStream = m_video_conn.getInputStream();
 			
@@ -1011,11 +1097,11 @@ public class WifiRobotActivity extends Activity {
 			//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
 			Log.d(TAG, "decodeStream end");
 
-			img_camera.setImageBitmap(bmp);
+			//img_camera.setImageBitmap(bmp);
 			flag = true;
 		} catch (Exception e) {
 			//disp_toast("获取图像数据失败,请确认图像网址是否正确!");
-			disp_toast("Getting remote image failed,please check the video address!");
+			
 			Log.e(TAG, "Error In Get Image Msg:" + e.getMessage());
 			flag = false;
 		}finally{
@@ -1025,8 +1111,7 @@ public class WifiRobotActivity extends Activity {
 			if ((httpclient != null) && (httpclient.getConnectionManager() != null)){
 				httpclient.getConnectionManager().shutdown(); /*及时关闭httpclient释放资源*/
 			}
-		}
-		
+		}		
     	
     	return flag;
     }
