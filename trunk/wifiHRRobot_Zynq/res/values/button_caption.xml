@@ -7,8 +7,15 @@
         <string name="button_direct">直行</string>
         <string name="button_start">启动</string>
         <string name="button_stop">停车</string>
-        <string name="button_image">Image</string>
+<!--         <string name="button_image">Image Capture</string> -->
+<!--         <string name="button_video_start">Video Capture</string> -->
+<!--         <string name="button_realcontrol">Enter Real Control Mode</string> -->
+<!--         <string name="button_autocontrol">Enter Auto Navigation Mode</string> -->
+		<string name="button_image">Image</string>
         <string name="button_video_start">Video Start</string>
+        <string name="button_realcontrol">Manual</string>
+        <string name="button_autocontrol">Auto</string>
+        <string name="button_connect">Connect</string>
         <string name="button_robot">Robot信息</string>
         <string name="button_video_stop">Video Stop</string>
         <string name="button_enter_follow_road_mode">进入巡线模式</string>

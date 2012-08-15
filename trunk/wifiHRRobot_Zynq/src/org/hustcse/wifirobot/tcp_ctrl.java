@@ -19,7 +19,10 @@ public class tcp_ctrl {
 	final static int SERVER = 1;
 	final static int CLIENT  = 2;
 	private static String TAG = "TCP_CTRL";
-	final static int MSG_WHAT = 1;
+
+	final static int MSG_DATA_REC = 1;
+	final static int MSG_DISPLAY_TOAST = 100;
+
 	private SharedPreferences preferences;
 
 	ctrl_frame	tcp_server_frame;
@@ -95,8 +98,20 @@ public class tcp_ctrl {
 	private final Handler mHandler_Client = new Handler() {
 		@Override
 		public void handleMessage(Message msg) {
-			if(D) Log.d(TAG, "Message Received From TCP Client:" + 
-					ctrl_prefixs.bytes2hexformatstring(((byte[])msg.obj)) );
+			switch (msg.what){
+				case MSG_DATA_REC:
+					if(D) Log.d(TAG, "Message Received From TCP Client:" + 
+							ctrl_prefixs.bytes2hexformatstring(((byte[])msg.obj)) );
+					break;
+				case MSG_DISPLAY_TOAST:
+					if (mHandler != null){
+						mHandler.obtainMessage(MSG_DISPLAY_TOAST,msg.obj).sendToTarget();
+					}
+					break;
+				default:
+					break;
+			}
+			
 			//handle_server_msg( ((byte[])msg.obj));
 		}
 	};
@@ -182,7 +197,7 @@ public class tcp_ctrl {
 	}
 	
 	private void handle_server_read_mass_msg(ctrl_frame mCtrl_frame){
-		mHandler.obtainMessage(MSG_WHAT, mCtrl_frame.ctrl_cmd).sendToTarget();
+		mHandler.obtainMessage(MSG_DATA_REC, mCtrl_frame.ctrl_cmd).sendToTarget();
 	}
 	
 	

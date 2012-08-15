@@ -19,7 +19,9 @@ public class tcp_ctrl_client extends Thread {
 	public   String IP = "127.0.0.1"; // 'Within' the emulator!
 	
 	final static int receive_pool_size  =  1024;
-	final static int MSG_WHAT = 1;
+	final static int MSG_DATA_REC = 1;
+	final static int MSG_DISPLAY_TOAST = 100;
+	
 	final static int MAX_TRIES = 100;
 	final static int RW_TIMEOUT = 2000;
 	final static int TCP_CON_TOUT = 1500;
@@ -29,7 +31,7 @@ public class tcp_ctrl_client extends Thread {
 	final static short tcp_ack = 1;
 	final static short udp_ack = 2;
 
-	Handler 		mHandler;      // Handler for messages in the main thread 
+	Handler 		mHandler = null;      // Handler for messages in the main thread 
 	Context 		mContext;	   // Context to the application (for getting ip Addresses)
 	Socket 			clientSocket;  // Socket used both for sending and receiving 
 	InetSocketAddress clentSocketAddr;
@@ -89,7 +91,7 @@ public class tcp_ctrl_client extends Thread {
 			//disp_toast("Connect to Server @" + ip + ":" + port);
 		} catch (Exception e) {
 			if(D) Log.d(TAG, "tcp socket connect fail" ); 
-
+			
 			socketOK  = false;
 			//disp_toast("Can't Connect to Server @" + ip + ":" + port);
 			//if(D) Log.e(TAG, "TCP client connect to server error:" + e.getMessage()); 
@@ -108,12 +110,19 @@ public class tcp_ctrl_client extends Thread {
 				socket_output = clientSocket.getOutputStream();
 				socket_input = clientSocket.getInputStream();
 				if(D) Log.d(TAG, "Connect to Server @" + IP + ":" + PORT); 
-				disp_toast("Connect to Server @" + IP + ":" + PORT);
+				String msg =  new String("Connect to TCP Server @" + IP + ":" + PORT);
+				if (mHandler != null){
+					mHandler.obtainMessage(MSG_DISPLAY_TOAST, msg).sendToTarget();
+				}
+				//disp_toast("Connect to Server @" + IP + ":" + PORT);
 				socketOK = true;
 				start();
 			}catch (Exception e) {
 				socketOK  = false;
-				disp_toast("Can't Connect to Server @" + IP + ":" + PORT);
+				String msg =  new String("Can't Connect to Server @" + IP + ":" + PORT);
+				if (mHandler != null){
+					mHandler.obtainMessage(MSG_DISPLAY_TOAST, msg).sendToTarget();
+				}				
 				if(D) Log.e(TAG, "TCP client connect to server error:" + e.getMessage()); 
 			}
 		}
@@ -342,7 +351,7 @@ public class tcp_ctrl_client extends Thread {
 					waitMsgRecAvailable();
 					rec_msg = get_receive_msg();
 					if (rec_msg != null){
-						rec_Handler.obtainMessage(MSG_WHAT, rec_msg).sendToTarget();
+						rec_Handler.obtainMessage(MSG_DATA_REC, rec_msg).sendToTarget();
 					}else{
 						if(D) Log.d(TAG, "Receive Null Msg"); 
 					}

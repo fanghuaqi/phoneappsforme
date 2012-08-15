@@ -21,6 +21,8 @@ import org.apache.http.util.EntityUtils;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
+import android.app.ProgressDialog;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -87,20 +89,29 @@ public class WifiRobotActivity extends Activity {
 	final static int MSG_VIDEO_UPDATE = 1;
 	final static int MSG_VIDEO_ERROR = 2;
 	final static int MSG_VIDEO_END = 3;
+	
+	final static int MSG_DATA_REC = 1;
+	final static int MSG_DISPLAY_TOAST = 100;
 
+    ProgressDialog mDialog;
+	private static final int CONNECT_DIALOG_KEY = 0;
 
 
 	Button btn_image;
 	Button btn_video;
 	Button btn_follow_road_mode_ctrl;
 	Button btn_set_camera2LCD;
+	Button btn_control_mode;
+	Button btn_connect;
 	
 	ImageView img_camera;
 	
 	private boolean follow_road_flag = false;
 	private boolean show_camera2LCD_flag = false;
 	private boolean need_lock_button = true; /*是否需要在进入巡线模式后让Button不可用*/
+	private boolean auto_control_mode = false;
 
+	
 	/*vlc video mode */
 	private boolean vlc_video_mode = false;
 	private String vlc_video_addr; 
@@ -219,6 +230,8 @@ public class WifiRobotActivity extends Activity {
         btn_video = (Button)findViewById(R.id.button_video);
         btn_follow_road_mode_ctrl = (Button)findViewById(R.id.button_follow_road_mode_ctrl);
         btn_set_camera2LCD = (Button)findViewById(R.id.button_show_camera2LCD);
+        btn_control_mode = (Button)findViewById(R.id.button_control);
+        btn_connect = (Button)findViewById(R.id.button_connect);
         
         img_camera = (ImageView)findViewById(R.id.imageView_camera);
         
@@ -228,13 +241,19 @@ public class WifiRobotActivity extends Activity {
 
         btn_image.getBackground().setAlpha(100); /*设置透明度为半透明 alpha 0-255*/
         btn_video.getBackground().setAlpha(100); /*设置透明度为半透明*/
+        btn_control_mode.getBackground().setAlpha(100);
         btn_follow_road_mode_ctrl.getBackground().setAlpha(100);
         btn_set_camera2LCD.getBackground().setAlpha(100);
+        btn_control_mode.getBackground().setAlpha(100);
+        btn_connect.getBackground().setAlpha(100);
         
         btn_image.setTextSize(screen_Width / btn_scale);
         btn_video.setTextSize(screen_Width / btn_scale);
         btn_follow_road_mode_ctrl.setTextSize(screen_Width / btn_scale);
         btn_set_camera2LCD.setTextSize(screen_Width / btn_scale);
+        btn_control_mode.setTextSize(screen_Width / btn_scale);
+        btn_connect.setTextSize(screen_Width / btn_scale);
+        
         
         ((TextView)findViewById(R.id.TextViewAngle)).setTextSize(screen_Width / txtview_scale);
         ((TextView)findViewById(R.id.TextViewSpeed)).setTextSize(screen_Width / txtview_scale);
@@ -246,6 +265,8 @@ public class WifiRobotActivity extends Activity {
         
         btn_follow_road_mode_ctrl.setOnClickListener(ctrl_btn_listener);
         btn_set_camera2LCD.setOnClickListener(ctrl_btn_listener);
+        btn_control_mode.setOnClickListener(ctrl_btn_listener);
+        btn_connect.setOnClickListener(connect_listener);
         
         log_pass_time("all objects init ok");
         
@@ -275,6 +296,7 @@ public class WifiRobotActivity extends Activity {
         
         log_pass_time("joystick ok");
 
+        mDialog = new ProgressDialog(this);
         
     	end_time = System.currentTimeMillis();
     	
@@ -620,37 +642,51 @@ public class WifiRobotActivity extends Activity {
 	private final Handler mHandler_UDP_SEND_MSG = new Handler() {
 		@Override
 		public void handleMessage(Message msg) {
-			short ctrlcmd =  (Short)(msg.obj);
-			switch (ctrlcmd) {
-				case ctrlcmds.ACQUIRE_CAMERA_IMAGE:
-					try {
-						udp_ctrl_obj.send_image_frames(0, image_binary_data);
-						for (int i = 0; i < img_size; i++){
-			        		 image_binary_data[i] = (byte) (image_binary_data[i] + 10);
-			        	 }
-					} catch (InterruptedException e) {
-						Log.e(TAG, "Error in acquire image command :" + e.getMessage());
+			switch (msg.what) {
+				case MSG_DATA_REC:
+					short ctrlcmd =  (Short)(msg.obj);
+					switch (ctrlcmd) {
+						case ctrlcmds.ACQUIRE_CAMERA_IMAGE:
+							try {
+								udp_ctrl_obj.send_image_frames(0, image_binary_data);
+								for (int i = 0; i < img_size; i++){
+					        		 image_binary_data[i] = (byte) (image_binary_data[i] + 10);
+					        	 }
+							} catch (InterruptedException e) {
+								Log.e(TAG, "Error in acquire image command :" + e.getMessage());
+							}
+							break;
+						case ctrlcmds.ACQUIRE_CAMERA_VIDEO_START:
+							while (video_cnt < 20){
+					        	video_cnt += 1;
+				        		for (int i = 0; i < img_size; i++){
+				        			image_binary_data[i] = (byte) (image_binary_data[i] + 10);
+				        		}
+					        	try {
+									udp_ctrl_obj.send_image_frames(video_cnt, image_binary_data);
+									Thread.yield();
+								} catch (InterruptedException e) {
+									Log.e(TAG, "Error in acquire video command :" + e.getMessage());
+								}
+				        	}
+							video_cnt = 0;
+							break;
+	
+						default:
+							break;
 					}
 					break;
-				case ctrlcmds.ACQUIRE_CAMERA_VIDEO_START:
-					while (video_cnt < 20){
-			        	video_cnt += 1;
-		        		for (int i = 0; i < img_size; i++){
-		        			image_binary_data[i] = (byte) (image_binary_data[i] + 10);
-		        		}
-			        	try {
-							udp_ctrl_obj.send_image_frames(video_cnt, image_binary_data);
-							Thread.yield();
-						} catch (InterruptedException e) {
-							Log.e(TAG, "Error in acquire video command :" + e.getMessage());
-						}
-		        	}
-		        	video_cnt = 0;
+				
+				case MSG_DISPLAY_TOAST:
+					disp_toast((String) msg.obj);
 					break;
 					
 				default:
 					break;
 			}
+				
+			
+			
 		}
 	};
     
@@ -705,6 +741,63 @@ public class WifiRobotActivity extends Activity {
 			}
 		}
 	};
+	
+	
+    protected Dialog onCreateDialog(int id) {
+        switch(id) {
+        case CONNECT_DIALOG_KEY:
+            mDialog = new ProgressDialog(WifiRobotActivity.this);
+            mDialog.setMessage("Try Connect to TCP Server ....");
+            mDialog.setCancelable(false);
+            return mDialog;
+        default:
+            return null;
+        }
+    }
+    
+ 
+	private OnClickListener connect_listener = new OnClickListener() {
+        public void onClick(View v) {
+        	showDialog(CONNECT_DIALOG_KEY);
+
+        	//tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
+        	
+
+
+        }
+    };
+    
+    @Override
+    protected void onPrepareDialog(int id, Dialog dialog) {
+        
+            ProgressThread progressThread = new ProgressThread(phandler);
+            progressThread.start();
+    }
+    
+    // Define the Handler that receives messages from the thread and update the progress
+    final Handler phandler = new Handler() {
+        public void handleMessage(Message msg) {
+            dismissDialog(CONNECT_DIALOG_KEY);
+        }
+    };
+    
+     /** Nested class that performs progress calculations (counting) */
+    private class ProgressThread extends Thread {
+        Handler mHandler;
+       
+       
+        ProgressThread(Handler h) {
+            mHandler = h;
+        }
+       
+        public void run() {
+            tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
+            mHandler.obtainMessage().sendToTarget();
+            
+        }
+        
+    }
+	
     private OnClickListener image_acquire_listener = new OnClickListener() {
         public void onClick(View v) {
         	post_ctrl_btnclk_msg(v.getId());
@@ -860,6 +953,19 @@ public class WifiRobotActivity extends Activity {
 					return;
 				}
 				break;
+			
+			case R.id.button_control:
+				if (auto_control_mode == false ){
+					ctrl_cmd = (short) (ctrlcmds.ENTER_AUTO_NAV_MODE);	
+					btn_control_mode.setText(R.string.button_realcontrol);
+					auto_control_mode = true;
+				}else{
+					ctrl_cmd = (short) (ctrlcmds.ENTER_REAL_CONTROL_MODE);	
+					btn_control_mode.setText(R.string.button_autocontrol);
+					auto_control_mode = false;
+				}
+				break;
+				
 			default:
 				return;
 		}
