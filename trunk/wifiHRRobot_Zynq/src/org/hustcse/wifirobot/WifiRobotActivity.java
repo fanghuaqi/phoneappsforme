@@ -882,7 +882,7 @@ public class WifiRobotActivity extends Activity {
         			(tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK() == false) ){ /* if ip or port updated or socket not opened*/
         		tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect(true);
         	}else{
-        		msg = new String("Already Connectted to TCP Server :" + dist_tcp_addr + ":" + dist_tcp_port);
+        		msg = new String("Already Connectted to TCP Server @" + dist_tcp_addr + ":" + dist_tcp_port);
         		//mHandler.obtainMessage(MSG_DISPLAY_TOAST).sendToTarget();
         	}
             mHandler.obtainMessage(CONNECT_DIALOG_KEY, msg).sendToTarget();            

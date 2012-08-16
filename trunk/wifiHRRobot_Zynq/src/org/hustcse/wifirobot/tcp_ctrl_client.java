@@ -69,7 +69,7 @@ public class tcp_ctrl_client extends Thread {
 		mContext = currentContext;
 		
 		try {
-			if(D) Log.d(TAG, "Try Connect to TCP Server @" + ip + ":" + port); 
+			//if(D) Log.d(TAG, "Try Connect to TCP Server @" + ip + ":" + port); 
 
 			tcp_send_msg_queue = new LinkedList<byte[]>();
 			tcp_rec_msg_queue = new LinkedList<byte[]>();
@@ -117,7 +117,7 @@ public class tcp_ctrl_client extends Thread {
 			try { /* close previous socket */
 				if (socketOK){
 					socketOK = false;
-					stop();
+					//stop();
 					clientSocket.close();					
 				}
 			} catch (Exception e) {
@@ -126,10 +126,10 @@ public class tcp_ctrl_client extends Thread {
 		
 			try{/* create new socket */
 				tcpserver_Addr = InetAddress.getByName(IP);
-				clentSocketAddr = new InetSocketAddress(tcpserver_Addr, PORT);
-				//clientSocket = new Socket(tcpserver_Addr, PORT);
-				clientSocket = new Socket();
-				clientSocket.connect(clentSocketAddr, TCP_CON_TOUT);
+				//clentSocketAddr = new InetSocketAddress(tcpserver_Addr, PORT);
+				clientSocket = new Socket(tcpserver_Addr, PORT);
+				//clientSocket = new Socket();
+				//clientSocket.connect(clentSocketAddr, TCP_CON_TOUT);
 				clientSocket.setSoTimeout(RW_TIMEOUT);
 				socket_output = clientSocket.getOutputStream();
 				socket_input = clientSocket.getInputStream();
@@ -140,7 +140,9 @@ public class tcp_ctrl_client extends Thread {
 				}
 				//disp_toast("Connect to Server @" + IP + ":" + PORT);
 				socketOK = true;
-				start();
+				if (!this.isAlive()){
+					start();
+				}
 			}catch (Exception e) {
 				socketOK  = false;
 				String msg =  new String("Can't Connect to Server @" + IP + ":" + PORT);
