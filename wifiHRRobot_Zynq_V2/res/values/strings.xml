@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="hello">Hello World, WifiRobotActivity!</string>
+    <string name="app_name">WifiHRRobot_V3</string>
+    <string name="spinner_fontset_prompt">请选择字体</string>
+    <string name="spinner_fontcolorset_prompt">请选择字体颜色</string>
+    <string name="vlcaddr">vlcaddr</string>
+    <string name="distipaddr">distipaddr</string>
+    <string name="vlcvideostate">vlcvideostate</string>
+    <string name="playersel">playersel</string>
+    <string name="disttcpport">disttcpport</string>
+    <string name="needsdlog">needsdlog</string>
+    <string name="tcpstate_online">Online</string>
+    <string name="tcpstate_offline">Offline</string>
+
+</resources>
