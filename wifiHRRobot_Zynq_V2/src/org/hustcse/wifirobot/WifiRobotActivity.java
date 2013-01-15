@@ -11,6 +11,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
@@ -62,6 +63,8 @@ import android.view.ViewGroup.LayoutParams;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ImageView.ScaleType;
+import android.widget.SeekBar;
+import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -109,6 +112,10 @@ public class WifiRobotActivity extends Activity {
 	
 	ImageView img_camera;
 	
+	/* seekbar objects */
+	
+	SeekBar skb_angle[];
+	
 	private boolean follow_road_flag = false;
 	private boolean show_camera2LCD_flag = false;
 	private boolean need_lock_button = true; /*是否需要在进入巡线模式后让Button不可用*/
@@ -149,6 +156,11 @@ public class WifiRobotActivity extends Activity {
 	int operate_speed_last = 0;
 	int operate_angle = 0;
 	int operate_speed = 0;
+	
+	int[] arm_angle_now = new int[5]; 
+	int[] arm_angle_last = new int[5]; 
+	private static final int ARM_ANGLE_MAX = 180;
+	
 	private  final  static int MAX_SPEED_UNIT = 10;
 	private  final  static int SPEED_SCALE = 5;
 
@@ -181,7 +193,6 @@ public class WifiRobotActivity extends Activity {
 	private String[] pass_log = new String[MAX_PASS+1];
 	
 	private static int MAX_INFO_CNT = 40;
-	private String CAT_FILE_PATH = "/system/bin/cat";
 
 	private String[] SystemInfo = new String[MAX_INFO_CNT];
 	
@@ -202,16 +213,8 @@ public class WifiRobotActivity extends Activity {
         setContentView(R.layout.main);
         
         log_pass_time("Set ContentView OK");
-        // Initialize preferences
         preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        //preferences.registerOnSharedPreferenceChangeListener(sys_set_chg_listener);
-        
-        //surface_vlc = (SurfaceView)findViewById(R.id.SurfaceView_camera);
-        //surfaceholder_vlc = surface_vlc.getHolder();
-        //surfaceholder_vlc.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-        //surfaceholder_vlc.addCallback(new SHCallback());
-        
-       // surface_vlc.setVisibility(View.INVISIBLE);
+
         log_pass_time("surfaceholder_vlc ok");
 
         
@@ -233,8 +236,6 @@ public class WifiRobotActivity extends Activity {
         
         btn_image = (Button)findViewById(R.id.button_image);
         btn_video = (Button)findViewById(R.id.button_video);
-        btn_follow_road_mode_ctrl = (Button)findViewById(R.id.button_follow_road_mode_ctrl);
-        btn_set_camera2LCD = (Button)findViewById(R.id.button_show_camera2LCD);
         btn_control_mode = (Button)findViewById(R.id.button_control);
         btn_connect = (Button)findViewById(R.id.button_connect);
         
@@ -244,22 +245,30 @@ public class WifiRobotActivity extends Activity {
         txtAngle = (TextView)findViewById(R.id.TextViewX);
         txtSpeed = (TextView)findViewById(R.id.TextViewY);
         txtTCPState = (TextView)findViewById(R.id.TextViewTCPState);
-
+        
+        /* Seekbar object get */
+        skb_angle = new SeekBar[5];
+        skb_angle[0] = (SeekBar)findViewById(R.id.seekbar_angle1);
+        skb_angle[1] = (SeekBar)findViewById(R.id.seekbar_angle2);
+        skb_angle[2] = (SeekBar)findViewById(R.id.seekbar_angle3);        
+        skb_angle[3] = (SeekBar)findViewById(R.id.seekbar_angle4);        
+        skb_angle[4] = (SeekBar)findViewById(R.id.seekbar_angle5);        
+        
         btn_image.getBackground().setAlpha(100); /*设置透明度为半透明 alpha 0-255*/
         btn_video.getBackground().setAlpha(100); /*设置透明度为半透明*/
         btn_control_mode.getBackground().setAlpha(100);
-        btn_follow_road_mode_ctrl.getBackground().setAlpha(100);
-        btn_set_camera2LCD.getBackground().setAlpha(100);
-        btn_control_mode.getBackground().setAlpha(100);
         btn_connect.getBackground().setAlpha(100);
+        
+        for (int i = 0; i < 5; i ++){
+        	skb_angle[i].setOnSeekBarChangeListener(skb_change_listener); /* 设置seekbar改变的listener */        	
+        	skb_angle[i].setMax(ARM_ANGLE_MAX * 2);
+        	skb_angle[i].setProgress(ARM_ANGLE_MAX);
+        }
         
         btn_image.setTextSize(screen_Width / btn_scale);
         btn_video.setTextSize(screen_Width / btn_scale);
-        btn_follow_road_mode_ctrl.setTextSize(screen_Width / btn_scale);
-        btn_set_camera2LCD.setTextSize(screen_Width / btn_scale);
         btn_control_mode.setTextSize(screen_Width / btn_scale);
         btn_connect.setTextSize(screen_Width / btn_scale);
-        
         
         ((TextView)findViewById(R.id.TextViewAngle)).setTextSize(screen_Width / txtview_scale);
         ((TextView)findViewById(R.id.TextViewSpeed)).setTextSize(screen_Width / txtview_scale);
@@ -271,8 +280,6 @@ public class WifiRobotActivity extends Activity {
         btn_image.setOnClickListener(image_acquire_listener);
         btn_video.setOnClickListener(video_acquire_listener);
         
-        btn_follow_road_mode_ctrl.setOnClickListener(ctrl_btn_listener);
-        btn_set_camera2LCD.setOnClickListener(ctrl_btn_listener);
         btn_control_mode.setOnClickListener(ctrl_btn_listener);
         btn_connect.setOnClickListener(connect_listener);
         
@@ -292,15 +299,7 @@ public class WifiRobotActivity extends Activity {
         }
 
         img_camera_bmp = Bitmap.createBitmap(img_width, img_height, img_cfg);
-        //Bitmap bitmap_rgb = bitmap_cp.copy(img_cfg, true);
-        //img_org = BitmapFactory.decodeResource(getResources(), R.drawable.grepscale);
-        //Log.i(TAG, "Orginal Picture Alpha:" + img_org.hasAlpha());
-        //Bitmap bitmap_rgb = Bitmap.createScaledBitmap(img_org, img_width, img_height, false);
-        //img_camera_bmp = bitmap_rgb.copy(img_cfg, true);
 
-		//Bitmap bitmap_cp = Bitmap.createScaledBitmap(bitmap, img_width, img_height, false);
-		//Bitmap bitmap_rgb = bitmap_cp.copy(img_cfg, true);
-		
         joyviewParams = joystick.getLayoutParams();
         joyviewParams.width = (int) (screen_Width / joystick_scale);
         joyviewParams.height = (int) (screen_Width / joystick_scale);
@@ -308,12 +307,10 @@ public class WifiRobotActivity extends Activity {
         joystick.setOnJostickMovedListener(_listener);
         
         log_pass_time("joystick ok");
-
         
     	end_time = System.currentTimeMillis();
     	
     	Log.i(TAG, "startup use "+ (end_time-start_time) + " ms");
-    	//disp_toast("启动耗时" + (end_time-start_time) + " ms");
         log_pass_time("program started");
         end_log_time();
         log_system_info();
@@ -476,11 +473,8 @@ public class WifiRobotActivity extends Activity {
           public void surfaceCreated(SurfaceHolder holder) {
               Log.v(TAG, "surfaceCreated");
               try {
-//                  mMediaPlayer = new MediaPlayer();
- //      mMediaPlayer.setDataSource(mPath);
             	  vlcmediaPlayer = new MediaPlayer();
                   vlcmediaPlayer.setDisplay(surfaceholder_vlc);
- //                 mMediaPlayer.prepare();
               } catch (Exception e) {
                  Log.e(TAG, "error: " + e.getMessage());
               }  
@@ -657,7 +651,86 @@ public class WifiRobotActivity extends Activity {
 
     }
 	
-      
+    private void adjustArmAngle(int skb_id, int progress){
+    	int arm_id = 0;
+    	int arm_angle = 0;
+    	
+    	switch (skb_id){
+    	case R.id.seekbar_angle1:
+    		arm_id = 0;
+    		break;
+    	case R.id.seekbar_angle2:
+    		arm_id = 1;
+    		break;
+    	case R.id.seekbar_angle3:
+    		arm_id = 2;
+    		break;
+    	case R.id.seekbar_angle4:
+    		arm_id = 3;
+    		break;
+    	case R.id.seekbar_angle5:
+    		arm_id = 4;
+    		break;
+    	default:
+    		return;    		
+    	}
+    	arm_angle = progress - ARM_ANGLE_MAX;
+    	arm_angle_now[arm_id] = arm_angle;
+    	checkSendAdjustARMMsg(arm_id);
+    	//Log.d(TAG, "Adjust ARM " + arm_id + " to angle " + arm_angle);
+
+    }
+    
+    /* 检查是否可以发送机械臂调节数据 */
+    private void checkSendAdjustARMMsg(int arm_id){
+    	if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()){ /*当前socket可用才进行数据发送*/
+    		 if (arm_angle_now[arm_id] != arm_angle_last[arm_id]){
+    			 arm_angle_last[arm_id] = arm_angle_now[arm_id];
+    			 postAdjustARMMsg(arm_id, arm_angle_last[arm_id]);
+    		 }
+    	}
+    }
+    
+    /*发送调节机械臂的指令*/
+    private void postAdjustARMMsg(int arm_id, int arm_angle){
+    	short ctrl_cmd ;
+    	short ctrl_prefix;
+    	byte[] msg = new byte[4];
+    	
+    	ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,ctrl_prefixs.withoutack);
+    	ctrl_cmd = ctrlcmds.ADJUST_ARM_ANGLE;
+    	msg[0] = (byte)(arm_id & 0xff);
+    	msg[1] = (byte)((arm_id >> 8) & 0xff);
+    	msg[2] = (byte)(arm_angle & 0xff);
+    	msg[3] = (byte)((arm_angle >> 8) & 0xff);
+    	
+    	Log.d(TAG, "Adjust ARM " + arm_id + " to angle " + arm_angle);
+    	post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
+    }
+    
+    /* seekbar 改变时的listener */
+    private  OnSeekBarChangeListener skb_change_listener = new OnSeekBarChangeListener() {
+
+		@Override
+		public void onProgressChanged(SeekBar seekBar, int progress,
+				boolean fromUser) {
+			//disp_toast(seekBar.getId() + ":" + progress + ":" + fromUser);
+			//Log.d(TAG, seekBar.getId() + ":" + progress + ":" + fromUser);
+			Thread.yield();
+		}
+
+		@Override
+		public void onStartTrackingTouch(SeekBar seekBar) {
+			Thread.yield();
+		}
+
+		@Override
+		public void onStopTrackingTouch(SeekBar seekBar) {
+			Log.d(TAG, seekBar.getId() + ":" + seekBar.getProgress());
+			adjustArmAngle(seekBar.getId(), seekBar.getProgress());
+			Thread.yield();			
+		}
+	}; 
     
 	private final Handler mHandler_UDP_SEND_MSG = new Handler() {
 		@Override
@@ -968,47 +1041,6 @@ public class WifiRobotActivity extends Activity {
     	Button btn;
     	ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,ctrl_prefixs.withoutack);
 		switch (btn_id){
-			case R.id.button_follow_road_mode_ctrl:
-				btn = (Button) findViewById(R.id.button_follow_road_mode_ctrl);
-				if (follow_road_flag == false){
-					ctrl_cmd = (short) (ctrlcmds.ENTER_FOLLOW_ROAD_MODE);	
-					btn.setText(R.string.button_exit_follow_road_mode);
-					if (need_lock_button == true){
-						((Button) findViewById(R.id.button_image)).setEnabled(false);
-						((Button) findViewById(R.id.button_video)).setEnabled(false);
-						((Button) findViewById(R.id.button_video)).setText(R.string.button_video_start);
-						video_flag = false;
-					}
-					follow_road_flag = true;
-				}else{
-					ctrl_cmd = (short) (ctrlcmds.EXIT_FOLLOW_ROAD_MODE);
-					btn.setText(R.string.button_enter_follow_road_mode);
-					((Button) findViewById(R.id.button_image)).setEnabled(true);
-					((Button) findViewById(R.id.button_video)).setEnabled(true);
-					follow_road_flag = false;
-				}
-				break;
-			case R.id.button_show_camera2LCD:
-				btn = (Button) findViewById(R.id.button_show_camera2LCD);
-				if (show_camera2LCD_flag == false){
-					ctrl_cmd = (short) (ctrlcmds.SET_LCD_SHOW_CAMREA_START);	
-					btn.setText(R.string.button_show_camera_onLCD_stop);
-					/*if (need_lock_button == true){
-						((Button) findViewById(R.id.button_image)).setEnabled(false);
-						((Button) findViewById(R.id.button_video)).setEnabled(false);
-						((Button) findViewById(R.id.button_video)).setText(R.string.button_video_start);
-						video_flag = false;
-					}*/
-					show_camera2LCD_flag = true;
-				}else{
-					ctrl_cmd = (short) (ctrlcmds.SET_LCD_SHOW_CAMREA_STOP);
-					btn.setText(R.string.button_show_camera_onLCD_start);
-					((Button) findViewById(R.id.button_image)).setEnabled(true);
-					((Button) findViewById(R.id.button_video)).setEnabled(true);
-					show_camera2LCD_flag = false;
-				}
-				break;
-				
 			case R.id.button_image:
 				update_preference();
 				if (vlc_video_mode == false){
@@ -1040,34 +1072,7 @@ public class WifiRobotActivity extends Activity {
 						play_stream_withotherplayer();
 					}else{
 						if (video_flag == false){
-/*							img_camera.setVisibility(View.INVISIBLE);
-							surface_vlc.setVisibility(View.VISIBLE);
-							while (!surface_vlc.isShown()); //等待surface创建完毕
-							if (vlc_video_process()){
-								btn.setText(R.string.button_video_stop);
-								video_flag = true;
-							}else{
-								img_camera.setVisibility(View.VISIBLE);
-								surface_vlc.setVisibility(View.INVISIBLE);
-							}*/
 							showDialog(VIDEOCAP_DIALOG_KEY);
-							/*if (video_ready_flag == true){
-								m_DrawVideo = new DrawVideo(vlc_video_addr,mHandler_video_process);
-								m_DrawVideo.start();
-								btn.setText(R.string.button_video_stop);
-								video_flag = true;
-							}else{
-								disp_toast("Getting remote video failed,please check the video address!");
-							}*/
-//							m_DrawVideo = new DrawVideo(vlc_video_addr,mHandler_video_process);
-//							if (m_DrawVideo.testconnection() == true){
-//								m_DrawVideo.start();
-//								btn.setText(R.string.button_video_stop);
-//								video_flag = true;
-//							}else{
-//								//disp_toast("获取视频数据失败,请确认视频网址是否正确!");
-//								disp_toast("Getting remote video failed,please check the video address!");
-//							}
 						}else{
 							if (m_DrawVideo != null){
 								m_DrawVideo.exit_thread();
@@ -1076,11 +1081,6 @@ public class WifiRobotActivity extends Activity {
 							btn.setText(R.string.button_video_start);
 							img_camera.setImageResource(R.drawable.zynq_logo);
 							video_flag = false;
-/*							video_flag = false;
-							vlcmediaPlayer.reset();
-							img_camera.setVisibility(View.VISIBLE);
-							surface_vlc.setVisibility(View.INVISIBLE);
-							btn.setText(R.string.button_video_start);*/
 						}
 					}
 
@@ -1121,33 +1121,23 @@ public class WifiRobotActivity extends Activity {
     	try {
     		m_video_addr = url_addr;
 			Log.d(TAG, "start get url");
-    		//m_video_url = new URL(m_video_addr);
 			httpRequest = new HttpGet(m_video_addr);  
 
     		Log.d(TAG, "open connection");
 			httpclient = new DefaultHttpClient();  
 
-			//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
 			Log.d(TAG, "begin connect");
 			httpResponse = httpclient.execute(httpRequest); 
-			//m_video_conn.connect();
 			Log.d(TAG, "get InputStream");
 			if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK){
 					Log.d(TAG, "decodeStream");
 					m_InputStream = httpResponse.getEntity().getContent();
 					img_camera_bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
 			}
-			//m_InputStream = m_video_conn.getInputStream();
-			
-			//Bitmap bmp = BitmapFactory.decodeStream(m_InputStream);//从获取的流中构建出BMP图像
-			//img_camera_bmp= Bitmap.createScaledBitmap(bmp, img_width, img_height, true);
 			Log.d(TAG, "decodeStream end");
 
-			//img_camera.setImageBitmap(bmp);
 			flag = true;
-		} catch (Exception e) {
-			//disp_toast("获取图像数据失败,请确认图像网址是否正确!");
-			
+		} catch (Exception e) {			
 			Log.e(TAG, "Error In Get Image Msg:" + e.getMessage());
 			flag = false;
 		}finally{
@@ -1171,7 +1161,6 @@ public class WifiRobotActivity extends Activity {
 			vlcmediaPlayer.reset();
 			vlcmediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
 			vlcmediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
-			//vlcmediaPlayer.setDataSource("http://daily3gp.com/vids/747.3gp"); /*测试这个是可以播放的*/
 			vlcmediaPlayer.setDataSource(vlc_video_addr);
 			vlcmediaPlayer.prepare();
 			vlcmediaPlayer.start();
@@ -1556,11 +1545,6 @@ public class WifiRobotActivity extends Activity {
     	public boolean testconnection(){
     		boolean flag = false;
     		try{
-				//m_video_url = new URL(m_video_addr);
-				//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
-				//m_video_conn.connect();
-    			//m_video_conn.setConnectTimeout(10);
-    			//m_InputStream = m_video_conn.getInputStream();
 
     			httpRequest = new HttpGet(m_video_addr);  
 				httpclient = new DefaultHttpClient();  
@@ -1589,15 +1573,6 @@ public class WifiRobotActivity extends Activity {
     	
     	public void run(){
     		try {
-    			//m_video_url = new URL(m_video_addr);
-				//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
-				//m_video_conn.connect();
-    			//m_video_conn = (HttpURLConnection)m_video_url.openConnection();
-				//m_video_conn.setDoOutput(true);
-				//m_video_conn.setDoOutput(true);
-				//m_video_conn.setConnectTimeout(10);
-				//m_InputStream = m_video_conn.getInputStream();
-
     			httpRequest = new HttpGet(m_video_addr);  
 				httpclient = new DefaultHttpClient();  
 
