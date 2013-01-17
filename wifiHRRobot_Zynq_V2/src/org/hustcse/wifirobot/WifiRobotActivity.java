@@ -261,8 +261,8 @@ public class WifiRobotActivity extends Activity {
         
         for (int i = 0; i < 5; i ++){
         	skb_angle[i].setOnSeekBarChangeListener(skb_change_listener); /* 设置seekbar改变的listener */        	
-        	skb_angle[i].setMax(ARM_ANGLE_MAX * 2);
-        	skb_angle[i].setProgress(ARM_ANGLE_MAX);
+        	skb_angle[i].setMax(ARM_ANGLE_MAX);
+        	skb_angle[i].setProgress(ARM_ANGLE_MAX / 2);
         }
         
         btn_image.setTextSize(screen_Width / btn_scale);
@@ -674,7 +674,7 @@ public class WifiRobotActivity extends Activity {
     	default:
     		return;    		
     	}
-    	arm_angle = progress - ARM_ANGLE_MAX;
+    	arm_angle = progress;
     	arm_angle_now[arm_id] = arm_angle;
     	checkSendAdjustARMMsg(arm_id);
     	//Log.d(TAG, "Adjust ARM " + arm_id + " to angle " + arm_angle);
@@ -714,8 +714,10 @@ public class WifiRobotActivity extends Activity {
 		@Override
 		public void onProgressChanged(SeekBar seekBar, int progress,
 				boolean fromUser) {
-			//disp_toast(seekBar.getId() + ":" + progress + ":" + fromUser);
 			//Log.d(TAG, seekBar.getId() + ":" + progress + ":" + fromUser);
+			if (fromUser){
+				adjustArmAngle(seekBar.getId(), seekBar.getProgress());
+			}			
 			Thread.yield();
 		}
 
@@ -726,8 +728,8 @@ public class WifiRobotActivity extends Activity {
 
 		@Override
 		public void onStopTrackingTouch(SeekBar seekBar) {
-			Log.d(TAG, seekBar.getId() + ":" + seekBar.getProgress());
-			adjustArmAngle(seekBar.getId(), seekBar.getProgress());
+			//Log.d(TAG, seekBar.getId() + ":" + seekBar.getProgress());
+			//adjustArmAngle(seekBar.getId(), seekBar.getProgress());
 			Thread.yield();			
 		}
 	}; 
@@ -1110,13 +1112,12 @@ public class WifiRobotActivity extends Activity {
     public boolean get_remote_image(String url_addr){
     	boolean flag = false;
     	
-    	String m_video_addr = "http://115.156.219.39:8080/?action=stream"; 
+    	String m_video_addr = "http://192.168.0.101:8080/?action=snapshot"; 
     	HttpURLConnection m_video_conn = null;
     	InputStream m_InputStream= null;
     	HttpGet httpRequest;
     	HttpClient httpclient = null;
-    	HttpResponse httpResponse;
-   			
+    	HttpResponse httpResponse;   			
 
     	try {
     		m_video_addr = url_addr;
@@ -1147,7 +1148,7 @@ public class WifiRobotActivity extends Activity {
 			if ((httpclient != null) && (httpclient.getConnectionManager() != null)){
 				httpclient.getConnectionManager().shutdown(); /*及时关闭httpclient释放资源*/
 			}
-		}		
+		}
     	
     	return flag;
     }
