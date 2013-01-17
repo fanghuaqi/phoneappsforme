@@ -13,7 +13,7 @@
             android:title="Start Remote Video Mode" />
         -->
         <EditTextPreference
-            android:defaultValue="http://115.156.219.39:8080/?action=snapshot"
+            android:defaultValue="http://192.168.0.101:8080/?action=snapshot"
             android:key="@string/vlcaddr"
             android:summary="Set Remote Video Address"
             android:title="Video Address" />
