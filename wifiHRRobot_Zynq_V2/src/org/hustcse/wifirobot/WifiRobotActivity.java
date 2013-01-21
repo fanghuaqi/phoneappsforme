@@ -74,8 +74,12 @@ import com.MobileAnarchy.Android.Widgets.Joystick.JoystickView;
 
 public class WifiRobotActivity extends Activity {
 	private static String TAG = "WifiHRRobot";
-	private static String VLC_VIDEO_ADDR = "http://115.156.219.39:8080/?action=stream";
-	private static String DIST_TCPIPADDR = "192.168.0.200";
+	
+	private static String CAR_VIDEO_ADDR = "http://192.168.1.100:8080/?action=snapshot";
+	private static String ARM_VIDEO_ADDR= "http://192.168.1.100:8090/?action=snapshot";
+	private static String OPENCV_VIDEO_ADDR = "http://192.168.1.100/detection.jpg";
+	
+	private static String DIST_TCPIPADDR = "192.168.1.100";
 	private static int DIST_TCPPORT = 1234;
 
 	final static boolean D = true;
@@ -104,6 +108,7 @@ public class WifiRobotActivity extends Activity {
 	private static final int VIDEOCAP_DIALOG_KEY = 2;
 
 	Button btn_image;
+	Button btn_video_srcsel;
 	Button btn_video;
 	Button btn_follow_road_mode_ctrl;
 	Button btn_set_camera2LCD;
@@ -124,7 +129,16 @@ public class WifiRobotActivity extends Activity {
 	
 	/*vlc video mode */
 	private boolean vlc_video_mode = false;
-	private String vlc_video_addr; 
+	
+	private int video_source_sel = 0;
+	final static int MAX_VIDEO_SRC_CNT = 3;
+	final static int CAR_VIDEO_SRC = 0;
+	final static int ARM_VIDEO_SRC = 1;
+	final static int OPENCV_VIDEO_SRC = 2;
+	
+	private String[] video_addr = new String[MAX_VIDEO_SRC_CNT]; 
+	private String cur_video_addr; /*当前视频源地址*/
+	
 	private boolean vlc_video_flag = false;
 	private boolean player_sel = false;
 	private boolean image_ready_flag = false;
@@ -234,7 +248,8 @@ public class WifiRobotActivity extends Activity {
         log_pass_time("screen info ok");
 
         
-        btn_image = (Button)findViewById(R.id.button_image);
+        //btn_image = (Button)findViewById(R.id.button_image);
+        btn_video_srcsel = (Button)findViewById(R.id.button_video_src);
         btn_video = (Button)findViewById(R.id.button_video);
         btn_control_mode = (Button)findViewById(R.id.button_control);
         btn_connect = (Button)findViewById(R.id.button_connect);
@@ -254,7 +269,8 @@ public class WifiRobotActivity extends Activity {
         skb_angle[3] = (SeekBar)findViewById(R.id.seekbar_angle4);        
         skb_angle[4] = (SeekBar)findViewById(R.id.seekbar_angle5);        
         
-        btn_image.getBackground().setAlpha(100); /*设置透明度为半透明 alpha 0-255*/
+        //btn_image.getBackground().setAlpha(100); /*设置透明度为半透明 alpha 0-255*/
+        btn_video_srcsel.getBackground().setAlpha(100); /*设置透明度为半透明*/
         btn_video.getBackground().setAlpha(100); /*设置透明度为半透明*/
         btn_control_mode.getBackground().setAlpha(100);
         btn_connect.getBackground().setAlpha(100);
@@ -265,7 +281,8 @@ public class WifiRobotActivity extends Activity {
         	skb_angle[i].setProgress(ARM_ANGLE_MAX / 2);
         }
         
-        btn_image.setTextSize(screen_Width / btn_scale);
+        //btn_image.setTextSize(screen_Width / btn_scale);
+        btn_video_srcsel.setTextSize(screen_Width / btn_scale);
         btn_video.setTextSize(screen_Width / btn_scale);
         btn_control_mode.setTextSize(screen_Width / btn_scale);
         btn_connect.setTextSize(screen_Width / btn_scale);
@@ -277,7 +294,8 @@ public class WifiRobotActivity extends Activity {
         txtSpeed.setTextSize(screen_Width / txtview_scale);
         txtTCPState.setTextSize(screen_Width / txtview_scale);
         
-        btn_image.setOnClickListener(image_acquire_listener);
+        //btn_image.setOnClickListener(image_acquire_listener);
+        btn_video_srcsel.setOnClickListener(video_src_acquire_listener);
         btn_video.setOnClickListener(video_acquire_listener);
         
         btn_control_mode.setOnClickListener(ctrl_btn_listener);
@@ -491,8 +509,11 @@ public class WifiRobotActivity extends Activity {
     public void update_preference(){
     	int temp;
     	try {
-			vlc_video_addr = preferences.getString(getResources().getString(R.string.vlcaddr), VLC_VIDEO_ADDR);
+			video_addr[0] = preferences.getString(getResources().getString(R.string.videoaddr1), CAR_VIDEO_ADDR);
+			video_addr[1] = preferences.getString(getResources().getString(R.string.videoaddr2), ARM_VIDEO_ADDR);
+			video_addr[2] = preferences.getString(getResources().getString(R.string.videoaddr3), OPENCV_VIDEO_ADDR);
 			dist_tcp_addr = preferences.getString(getResources().getString(R.string.distipaddr), DIST_TCPIPADDR);
+			
 			try{
 				temp = Integer.parseInt( (preferences.getString(getResources().getString(R.string.disttcpport), String.valueOf(DIST_TCPPORT))) );
 				dist_tcp_port = temp;
@@ -926,7 +947,7 @@ public class WifiRobotActivity extends Activity {
 					video_ready_flag = (Boolean)(msg.obj);
 					if  ( video_ready_flag == true){
 						img_camera.setImageBitmap(img_camera_bmp);
-						m_DrawVideo = new DrawVideo(vlc_video_addr,mHandler_video_process);
+						m_DrawVideo = new DrawVideo(cur_video_addr, mHandler_video_process);
 						m_DrawVideo.start();
 						btn_video.setText(R.string.button_video_stop);
 						video_flag = true;
@@ -975,7 +996,7 @@ public class WifiRobotActivity extends Activity {
         }
        
         public void run() {
-        	image_ok = get_remote_image(vlc_video_addr) ;
+        	image_ok = get_remote_image(cur_video_addr) ;
             mHandler.obtainMessage(dialog_key, image_ok).sendToTarget();
             
         }        
@@ -990,7 +1011,7 @@ public class WifiRobotActivity extends Activity {
         }
        
         public void run() {
-            if (get_remote_image(vlc_video_addr) == true){
+            if (get_remote_image(cur_video_addr) == true){
             	
             }
             mHandler.obtainMessage(IMGCAP_DIALOG_KEY).sendToTarget();
@@ -1001,6 +1022,13 @@ public class WifiRobotActivity extends Activity {
     private OnClickListener image_acquire_listener = new OnClickListener() {
         public void onClick(View v) {
         	post_ctrl_btnclk_msg(v.getId());
+        }
+    };
+    
+    private OnClickListener video_src_acquire_listener = new OnClickListener() {
+        public void onClick(View v) {
+        	process_video_src_select(v.getId());
+        	
         }
     };
     
@@ -1022,8 +1050,12 @@ public class WifiRobotActivity extends Activity {
 		@Override
 		public void onSharedPreferenceChanged(SharedPreferences sharedPreferences,
 				String key) {
-			if (key == getResources().getString(R.string.vlcaddr)){
-				vlc_video_addr = preferences.getString(key, VLC_VIDEO_ADDR);			
+			if (key == getResources().getString(R.string.videoaddr1)){
+				video_addr[0] = preferences.getString(key, CAR_VIDEO_ADDR);			
+			}else if (key == getResources().getString(R.string.videoaddr2)){
+				video_addr[1] = preferences.getString(key, ARM_VIDEO_ADDR);			
+			}else if (key == getResources().getString(R.string.videoaddr3)){
+				video_addr[2] = preferences.getString(key, OPENCV_VIDEO_ADDR);			
 			}else if (key == getResources().getString(R.string.vlcvideostate)){
 				
 			}else if ( (key == getResources().getString(R.string.distipaddr)) || 
@@ -1035,6 +1067,55 @@ public class WifiRobotActivity extends Activity {
 		}
 	};
     
+	/* 处理选择视频源的消息 */
+	private void process_video_src_select(int btn_id){
+		Button btn;
+		
+		switch (btn_id){
+			case R.id.button_video_src:
+				update_preference();
+				btn = (Button) findViewById(R.id.button_video_src);
+				video_source_sel += 1;
+				if (video_source_sel >= MAX_VIDEO_SRC_CNT){
+					video_source_sel = 0;
+				}
+				cur_video_addr = video_addr[video_source_sel]; /*选择正确视频源*/
+				disp_toast("Using Address:" + cur_video_addr + " as video address now.");
+				switch (video_source_sel){
+					case CAR_VIDEO_SRC:
+						btn.setText(R.string.button_video_src_car);
+						break;
+					case ARM_VIDEO_SRC:
+						btn.setText(R.string.button_video_src_arm);
+						break;
+					case OPENCV_VIDEO_SRC:
+						btn.setText(R.string.button_video_src_opencv);
+						break;
+				}
+				
+				/* 如果当前的正在采集视频数据 
+				 * 就需要进行切换,
+				 * 并且先要将之前的视频掐掉 */
+				if (video_flag == true){ 
+					/* 先退出之前的视频源 */
+					if (m_DrawVideo != null){
+						m_DrawVideo.exit_thread();
+						m_DrawVideo.stop();
+					}
+					btn.setText(R.string.button_video_start);
+					img_camera.setImageResource(R.drawable.zynq_logo);
+					video_flag = false;
+					/* 切换为新的视频源 */
+					showDialog(VIDEOCAP_DIALOG_KEY);
+				}
+				
+				break;
+			default:
+				return;
+		}
+		
+	}
+	
     /*处理对小车控制按钮的消息*/
     private void post_ctrl_btnclk_msg(int btn_id) {
     	short ctrl_cmd = 0 ;
@@ -1051,9 +1132,9 @@ public class WifiRobotActivity extends Activity {
 				}else{
 					showDialog(IMGCAP_DIALOG_KEY);
 					return;
-				}
-				
+				}				
 				break;
+				
 			case R.id.button_video:
 				btn = (Button) findViewById(R.id.button_video);
 				update_preference();
@@ -1112,7 +1193,7 @@ public class WifiRobotActivity extends Activity {
     public boolean get_remote_image(String url_addr){
     	boolean flag = false;
     	
-    	String m_video_addr = "http://192.168.0.101:8080/?action=snapshot"; 
+    	String m_video_addr = "http://192.168.1.100:8080/?action=snapshot"; 
     	HttpURLConnection m_video_conn = null;
     	InputStream m_InputStream= null;
     	HttpGet httpRequest;
@@ -1162,7 +1243,7 @@ public class WifiRobotActivity extends Activity {
 			vlcmediaPlayer.reset();
 			vlcmediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
 			vlcmediaPlayer.setWakeMode(getApplicationContext(), PowerManager.PARTIAL_WAKE_LOCK);
-			vlcmediaPlayer.setDataSource(vlc_video_addr);
+			vlcmediaPlayer.setDataSource(cur_video_addr);
 			vlcmediaPlayer.prepare();
 			vlcmediaPlayer.start();
 			play_state = true;
@@ -1177,7 +1258,7 @@ public class WifiRobotActivity extends Activity {
     public void play_stream_withotherplayer(){
     	try {
 			Intent it = new Intent(Intent.ACTION_VIEW);
-			Uri uri = Uri.parse(vlc_video_addr);
+			Uri uri = Uri.parse(cur_video_addr);
 			it.setDataAndType(uri, "video/*");
 			startActivity(it);
 		} catch (Exception e) {

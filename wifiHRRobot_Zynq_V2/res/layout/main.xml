@@ -49,7 +49,19 @@
             android:layout_alignLeft="@id/button_video"
             android:layout_alignParentRight="true"
             android:layout_marginBottom="5dp"
-            android:text="@string/button_image" />
+            android:text="@string/button_image" 
+            android:enabled="false"				
+            android:visibility="invisible" />
+        
+        <Button
+            android:id="@+id/button_video_src"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/button_video"
+            android:layout_alignLeft="@id/button_video"
+            android:layout_alignParentRight="true"
+            android:layout_marginBottom="5dp"
+            android:text="@string/button_video_src_car" />
         
         <Button
             android:id="@+id/button_control"
@@ -60,6 +72,7 @@
             android:layout_alignLeft="@id/button_image"
             android:text="@string/button_autocontrol"
             android:visibility="visible" />
+        
         <Button
             android:id="@+id/button_connect"
             android:layout_width="wrap_content"
