@@ -13,12 +13,22 @@
             android:title="Start Remote Video Mode" />
         -->
         <EditTextPreference
-            android:defaultValue="http://192.168.0.101:8080/?action=snapshot"
-            android:key="@string/vlcaddr"
-            android:summary="Set Remote Video Address"
-            android:title="Video Address" />
+            android:defaultValue="http://192.168.1.100:8080/?action=snapshot"
+            android:key="@string/videoaddr1"
+            android:summary="Set Car Video Address"
+            android:title="Car Video Address" />
         <EditTextPreference
-            android:defaultValue="192.168.0.10"
+            android:defaultValue="http://192.168.1.100:8090/?action=snapshot"
+            android:key="@string/videoaddr2"
+            android:summary="Set ARM Video Address"
+            android:title="ARM Video Address " />
+        <EditTextPreference
+            android:defaultValue="http://192.168.1.100/detection.jpg"
+            android:key="@string/videoaddr3"
+            android:summary="Set OpenCV Video Address"
+            android:title="OpenCV Video Address" />
+        <EditTextPreference
+            android:defaultValue="192.168.1.100"
             android:enabled="true"
             android:key="@string/distipaddr"
             android:summary="Set Host Board IP Address"

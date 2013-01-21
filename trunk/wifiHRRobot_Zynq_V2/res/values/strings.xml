@@ -5,7 +5,9 @@
     <string name="app_name">WifiHRRobot_V3</string>
     <string name="spinner_fontset_prompt">请选择字体</string>
     <string name="spinner_fontcolorset_prompt">请选择字体颜色</string>
-    <string name="vlcaddr">vlcaddr</string>
+    <string name="videoaddr1">carvideoaddr</string>
+    <string name="videoaddr2">armvideoaddr</string>
+    <string name="videoaddr3">opencvvideoaddr</string>
     <string name="distipaddr">distipaddr</string>
     <string name="vlcvideostate">vlcvideostate</string>
     <string name="playersel">playersel</string>
