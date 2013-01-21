@@ -1412,6 +1412,7 @@ public class WifiRobotActivity extends Activity {
 					play_stream_withotherplayer();
 				} else {
 					if (video_flag == false) {
+						cur_video_addr = video_addr[video_source_sel]; /* 选择正确视频源 */
 						showDialog(VIDEOCAP_DIALOG_KEY);
 					} else {
 						if (m_DrawVideo != null) {
