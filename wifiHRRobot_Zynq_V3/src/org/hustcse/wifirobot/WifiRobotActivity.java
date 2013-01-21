@@ -114,6 +114,7 @@ public class WifiRobotActivity extends Activity {
 	Button btn_set_camera2LCD;
 	Button btn_control_mode;
 	Button btn_connect;
+	Button btn_laser_ctrl;
 
 	ImageView img_camera;
 
@@ -204,8 +205,8 @@ public class WifiRobotActivity extends Activity {
 	LayoutParams joyviewParams;
 	LayoutParams joyviewParamsArm;	
 	
-	private float btn_scale = (float) 30;
-	private float txtview_scale = (float) 28;
+	private float btn_scale = (float) 42;
+	private float txtview_scale = (float) 42;
 
 	private long start_time = 0;
 	private long end_time = 0;
@@ -226,6 +227,10 @@ public class WifiRobotActivity extends Activity {
 	private int pass_cnt = 0;
 	private String MYLOG_PATH_SD = "hrrobotlog";
 	private boolean need_sd_log = false;
+	
+	private final static int LASER_OFF = 0;
+	private final static int LASER_ON = 1;
+	private int laser_ctrl = LASER_OFF;
 
 	/** Called when the activity is first created. */
 	@Override
@@ -262,7 +267,8 @@ public class WifiRobotActivity extends Activity {
 		btn_video = (Button) findViewById(R.id.button_video);
 		btn_control_mode = (Button) findViewById(R.id.button_control);
 		btn_connect = (Button) findViewById(R.id.button_connect);
-
+		btn_laser_ctrl = (Button) findViewById(R.id.button_laser_ctrl);
+		
 		img_camera = (ImageView) findViewById(R.id.imageView_camera);
 
 		joystick = (JoystickView) findViewById(R.id.joystickView);   /* control joystick */
@@ -285,6 +291,7 @@ public class WifiRobotActivity extends Activity {
 		btn_video.getBackground().setAlpha(100); /* 设置透明度为半透明 */
 		btn_control_mode.getBackground().setAlpha(100);
 		btn_connect.getBackground().setAlpha(100);
+		btn_laser_ctrl.getBackground().setAlpha(100);
 
 		for (int i = 0; i < 5; i++) {
 			skb_angle[i].setOnSeekBarChangeListener(skb_change_listener); /* 设置seekbar改变的listener */
@@ -297,6 +304,7 @@ public class WifiRobotActivity extends Activity {
 		btn_video.setTextSize(screen_Width / btn_scale);
 		btn_control_mode.setTextSize(screen_Width / btn_scale);
 		btn_connect.setTextSize(screen_Width / btn_scale);
+		btn_laser_ctrl.setTextSize(screen_Width / btn_scale);
 
 		((TextView) findViewById(R.id.TextViewAngle)).setTextSize(screen_Width
 				/ txtview_scale);
@@ -314,6 +322,7 @@ public class WifiRobotActivity extends Activity {
 
 		btn_control_mode.setOnClickListener(ctrl_btn_listener);
 		btn_connect.setOnClickListener(connect_listener);
+		btn_laser_ctrl.setOnClickListener(laser_ctrl_listener);
 
 		log_pass_time("all objects init ok");
 
@@ -1212,6 +1221,40 @@ public class WifiRobotActivity extends Activity {
 			post_ctrl_btnclk_msg(v.getId());
 		}
 	};
+	
+	private OnClickListener laser_ctrl_listener = new OnClickListener() {
+		public void onClick(View v) {
+			/* 发送激光控制命令 */
+			postLaserCtrlMsg(v.getId());
+		}
+	};
+	
+	private void postLaserCtrlMsg(int btn_id) {
+		short ctrl_cmd;
+		short ctrl_prefix;
+		byte[] msg = new byte[1];
+		Button btn;
+
+		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
+				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
+				ctrl_prefixs.withoutack);
+		ctrl_cmd = ctrlcmds.LASER_CTRL;
+		
+		btn = (Button) findViewById(btn_id);
+		
+		if (laser_ctrl == LASER_OFF){
+			btn.setText(R.string.button_laser_off);
+			laser_ctrl = LASER_ON;
+		}else{
+			btn.setText(R.string.button_laser_on);
+			laser_ctrl = LASER_OFF;
+		}
+		
+		msg[0] = (byte) (laser_ctrl & 0xff);
+
+		Log.d(TAG, "Switch Laser Ctrl "  + " to  " + laser_ctrl);
+		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
+	}
 
 	private OnSharedPreferenceChangeListener sys_set_chg_listener = new OnSharedPreferenceChangeListener() {
 
