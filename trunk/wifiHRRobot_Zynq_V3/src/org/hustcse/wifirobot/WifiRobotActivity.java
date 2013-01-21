@@ -1338,7 +1338,7 @@ public class WifiRobotActivity extends Activity {
 			/*测试并发送切换的视频模式*/
 			checkSendSwitchVideoModeMsg(video_source_sel);
 			
-			disp_toast(toast_str);
+			//disp_toast(toast_str);
 			
 			/*
 			 * 如果当前的正在采集视频数据 就需要进行切换, 并且先要将之前的视频掐掉
