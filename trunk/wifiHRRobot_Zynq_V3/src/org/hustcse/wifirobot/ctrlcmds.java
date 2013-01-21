@@ -16,6 +16,8 @@ public class ctrlcmds {
 	public static final short ENTER_REAL_CONTROL_MODE = (WRITE_CMD_BASE + 10);
 	public static final short ENTER_AUTO_NAV_MODE = (WRITE_CMD_BASE + 11);
 	public static final short ADJUST_ARM_ANGLE = (WRITE_CMD_BASE + 12);
+	public static final short OPERATE_ARM = (WRITE_CMD_BASE + 13);
+	public static final short ADJUST_VIDEO_MODE = (WRITE_CMD_BASE + 14);
 	
 	/*获取小车摄像头图像和视频*/
 	public static final short UDP_DATA_ACQ_BASE = 0x100;
