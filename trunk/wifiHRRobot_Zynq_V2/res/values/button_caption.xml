@@ -12,10 +12,10 @@
 <!--         <string name="button_realcontrol">Enter Real Control Mode</string> -->
 <!--         <string name="button_autocontrol">Enter Auto Navigation Mode</string> -->
 		<string name="button_image">Image</string>
-		<string name="button_video_src_none">NO VIDEO</string>
-		<string name="button_video_src_car">CAR VIDEO</string>
-		<string name="button_video_src_arm">ARM VIDEO</string>
-		<string name="button_video_src_opencv">OPENCV VIDEO</string>
+		<string name="button_video_src_none">NONE</string>
+		<string name="button_video_src_car">CAR</string>
+		<string name="button_video_src_arm">ARM</string>
+		<string name="button_video_src_opencv">OPENCV</string>
 		
         <string name="button_video_start">Video Start</string>
         <string name="button_realcontrol">Manual</string>
