@@ -1,0 +1,30 @@
+
+    <resources>
+        <string name="button_up">加速</string>
+        <string name="button_down">减速</string>
+        <string name="button_left">左转</string>
+        <string name="button_right">右转</string>
+        <string name="button_direct">直行</string>
+        <string name="button_start">启动</string>
+        <string name="button_stop">停车</string>
+<!--         <string name="button_image">Image Capture</string> -->
+<!--         <string name="button_video_start">Video Capture</string> -->
+<!--         <string name="button_realcontrol">Enter Real Control Mode</string> -->
+<!--         <string name="button_autocontrol">Enter Auto Navigation Mode</string> -->
+		<string name="button_image">Image</string>
+		<string name="button_video_src_none">NONE</string>
+		<string name="button_video_src_car">CAR</string>
+		<string name="button_video_src_arm">ARM</string>
+		<string name="button_video_src_opencv">OPENCV</string>
+		
+        <string name="button_video_start">Video Start</string>
+        <string name="button_realcontrol">Manual</string>
+        <string name="button_autocontrol">Auto</string>
+        <string name="button_connect">Connect</string>
+        <string name="button_robot">Robot信息</string>
+        <string name="button_video_stop">Video Stop</string>
+        <string name="button_enter_follow_road_mode">进入巡线模式</string>
+        <string name="button_exit_follow_road_mode">退出巡线模式</string>
+        <string name="button_show_camera_onLCD_start">液晶动态图像显示开始</string>
+        <string name="button_show_camera_onLCD_stop">液晶动态图像显示结束</string>
+    </resources>

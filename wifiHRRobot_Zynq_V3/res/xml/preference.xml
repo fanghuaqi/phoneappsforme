@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
+
+    <PreferenceCategory android:title="Net Settings" >
+
+        <!--
+             <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="@string/vlcvideostate"
+            android:summary="Remote Video Mode On/Off"
+            android:summaryOff="Disabled"
+            android:summaryOn="Enabled"
+            android:title="Start Remote Video Mode" />
+        -->
+        <EditTextPreference
+            android:defaultValue="http://192.168.1.100:8080/?action=snapshot"
+            android:key="@string/videoaddr1"
+            android:summary="Set Car Video Address"
+            android:title="Car Video Address" />
+        <EditTextPreference
+            android:defaultValue="http://192.168.1.100:8090/?action=snapshot"
+            android:key="@string/videoaddr2"
+            android:summary="Set ARM Video Address"
+            android:title="ARM Video Address " />
+        <EditTextPreference
+            android:defaultValue="http://192.168.1.100/detection.jpg"
+            android:key="@string/videoaddr3"
+            android:summary="Set OpenCV Video Address"
+            android:title="OpenCV Video Address" />
+        <EditTextPreference
+            android:defaultValue="192.168.1.100"
+            android:enabled="true"
+            android:key="@string/distipaddr"
+            android:summary="Set Host Board IP Address"
+            android:title="Host IP" />
+        <EditTextPreference
+            android:defaultValue="1234"
+            android:enabled="true"
+            android:key="@string/disttcpport"
+            android:summary="Set Host Board TCP Server Port"
+            android:title="TCP Server Port" />
+
+        <!--
+             <CheckBoxPreference
+            android:key="@string/playersel"
+            android:summary="Video Play Mode Set"
+            android:summaryOff="Disabled"
+            android:summaryOn="Enabled"
+            android:title="Play With Outter Video Player" />
+        -->
+    </PreferenceCategory>
+    <!--
+         <PreferenceCategory android:title="StartUp Set" >
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="@string/needsdlog"
+            android:selectable="true"
+            android:summary="If Need Record Log When Start Up"
+            android:summaryOff="Disabled"
+            android:summaryOn="Enabled"
+            android:title="Log Record" />
+    </PreferenceCategory>
+    -->
+
+</PreferenceScreen>
