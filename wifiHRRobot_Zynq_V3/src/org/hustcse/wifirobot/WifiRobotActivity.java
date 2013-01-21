@@ -164,11 +164,23 @@ public class WifiRobotActivity extends Activity {
 	Bitmap img_camera_bmp;
 	boolean video_flag = false;
 	JoystickView joystick;
+	
+	JoystickView joystickArm;
+	
 	TextView txtAngle, txtSpeed, txtTCPState;
 	int operate_angle_last = 0;
 	int operate_speed_last = 0;
 	int operate_angle = 0;
 	int operate_speed = 0;
+	
+	/* 机械臂的X,Y偏移 */
+	int arm_x_offset = 0;
+	int arm_y_offset = 0;
+	int arm_x_offset_last = 0;
+	int arm_y_offset_last = 0;
+	private final static int MAX_ARM_UNIT = 10;
+	private final static int ARM_X_SCALE = 9;
+	private final static int ARM_Y_SCALE = 9;
 
 	int[] arm_angle_now = new int[5];
 	int[] arm_angle_last = new int[5];
@@ -190,7 +202,8 @@ public class WifiRobotActivity extends Activity {
 	private int screen_Orientation = 0;
 	private float joystick_scale = (float) 3;
 	LayoutParams joyviewParams;
-
+	LayoutParams joyviewParamsArm;	
+	
 	private float btn_scale = (float) 30;
 	private float txtview_scale = (float) 28;
 
@@ -252,7 +265,9 @@ public class WifiRobotActivity extends Activity {
 
 		img_camera = (ImageView) findViewById(R.id.imageView_camera);
 
-		joystick = (JoystickView) findViewById(R.id.joystickView);
+		joystick = (JoystickView) findViewById(R.id.joystickView);   /* control joystick */
+		joystickArm = (JoystickView) findViewById(R.id.joystickARM); /* arm joystick */
+		
 		txtAngle = (TextView) findViewById(R.id.TextViewX);
 		txtSpeed = (TextView) findViewById(R.id.TextViewY);
 		txtTCPState = (TextView) findViewById(R.id.TextViewTCPState);
@@ -319,11 +334,19 @@ public class WifiRobotActivity extends Activity {
 
 		img_camera_bmp = Bitmap.createBitmap(img_width, img_height, img_cfg);
 
+		/* 设置 遥控小车的界面的摇杆大小 */
 		joyviewParams = joystick.getLayoutParams();
 		joyviewParams.width = (int) (screen_Width / joystick_scale);
 		joyviewParams.height = (int) (screen_Width / joystick_scale);
 		joystick.setLayoutParams(joyviewParams);
-		joystick.setOnJostickMovedListener(_listener);
+		joystick.setOnJostickMovedListener(joystickctrl_listener);
+		
+		/* 设置 操作机械臂的界面的摇杆大小 */
+		joyviewParams = joystickArm.getLayoutParams();
+		joyviewParams.width = (int) (screen_Width / joystick_scale);
+		joyviewParams.height = (int) (screen_Width / joystick_scale);
+		joystickArm.setLayoutParams(joyviewParams);
+		joystickArm.setOnJostickMovedListener(joystickarm_listener);
 
 		log_pass_time("joystick ok");
 
@@ -603,7 +626,7 @@ public class WifiRobotActivity extends Activity {
 		return super.onKeyDown(keyCode, event);
 	}
 
-	private JoystickMovedListener _listener = new JoystickMovedListener() {
+	private JoystickMovedListener joystickctrl_listener = new JoystickMovedListener() {
 
 		@Override
 		public void OnMoved(int pan, int tilt) {
@@ -636,6 +659,34 @@ public class WifiRobotActivity extends Activity {
 		};
 	};
 
+	private JoystickMovedListener joystickarm_listener = new JoystickMovedListener() {
+
+		@Override
+		public void OnMoved(int pan, int tilt) {
+			int operate_x = 0;
+			int operate_y = 0;
+
+			operate_x = pan;
+			operate_y = -tilt;
+			calc_arm_xy(operate_x, operate_y);
+			
+			checkSendOperateArmMsg();
+			Thread.yield(); /* 进程主动让出 控制权，这样的话 在操作摇杆时 还是可以显示动态图像的虽然效果不好 */
+		}
+
+		@Override
+		public void OnReleased() {
+			Thread.yield();
+		}
+
+		public void OnReturnedToCenter() {
+			arm_x_offset = 0;
+			arm_y_offset = 0;
+			checkSendOperateArmMsg();
+			Thread.yield();
+		};
+	};
+	
 	/* 测试是否角度和速度没有改变 并发送控制小车命令 */
 	private void checkSendOperateCarMsg() {
 		// tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect();
@@ -652,6 +703,8 @@ public class WifiRobotActivity extends Activity {
 		}
 	}
 
+	
+	
 	/* 发送获取角度控制和速度控制的命令 */
 	private void postOperateCarMessage(int angle, int speed) {
 		short ctrl_cmd;
@@ -714,6 +767,56 @@ public class WifiRobotActivity extends Activity {
 		}
 		operate_speed = operate_speed * SPEED_SCALE;
 
+	}
+	
+	/* 计算机械臂的X,Y偏移值 */
+	private void calc_arm_xy(int operate_x, int operate_y) {
+		if (operate_x > MAX_ARM_UNIT){
+			operate_x = MAX_ARM_UNIT;
+		}else if (operate_x < -MAX_ARM_UNIT){
+			operate_x = -MAX_ARM_UNIT;
+		}
+		
+		if (operate_y > MAX_ARM_UNIT){
+			operate_y = MAX_ARM_UNIT;
+		}else if (operate_y < -MAX_ARM_UNIT){
+			operate_y = -MAX_ARM_UNIT;
+		}
+		
+		arm_x_offset = operate_x * ARM_X_SCALE;
+		arm_y_offset = operate_y * ARM_Y_SCALE;		
+	}
+	
+	/* 测试机械臂的XY是否没有改变 并发送控制机械臂命令 */
+	private void checkSendOperateArmMsg() {
+		if (!((arm_x_offset == arm_x_offset_last) && (arm_y_offset == arm_y_offset_last))) {
+			if ((tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK())) { 
+				/*
+				 * 当前socket可用才进行数据发送
+				 */
+				postOperateArmMessage(arm_x_offset, arm_y_offset);
+			}
+			arm_x_offset_last = arm_x_offset;
+			arm_y_offset_last = arm_y_offset;
+		}
+	}
+	
+	/* 发送获取机械臂XY控制的命令 */
+	private void postOperateArmMessage(int x, int y) {
+		short ctrl_cmd;
+		short ctrl_prefix;
+		byte[] msg = new byte[4];
+
+		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
+				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
+				ctrl_prefixs.withoutack);
+		ctrl_cmd = ctrlcmds.OPERATE_ARM;
+		msg[0] = (byte) (x & 0xff);
+		msg[1] = (byte) ((x >> 8) & 0xff);
+		msg[2] = (byte) (y & 0xff);
+		msg[3] = (byte) ((y >> 8) & 0xff);
+
+		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
 	}
 
 	private void adjustArmAngle(int skb_id, int progress) {
@@ -1137,6 +1240,29 @@ public class WifiRobotActivity extends Activity {
 		}
 	};
 
+	/* 检查是否可以发送切换视频模式 */
+	private void checkSendSwitchVideoModeMsg(int videomode) {
+		if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()) { /* 当前socket可用才进行数据发送 */
+			postSwitchVideoModeMsg(videomode);
+		}
+	}
+
+	/* 发送切换视频模式的指令 */
+	private void postSwitchVideoModeMsg(int videomode) {
+		short ctrl_cmd;
+		short ctrl_prefix;
+		byte[] msg = new byte[1];
+
+		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
+				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
+				ctrl_prefixs.withoutack);
+		ctrl_cmd = ctrlcmds.ADJUST_VIDEO_MODE;
+		msg[0] = (byte) (videomode & 0xff);
+
+		Log.d(TAG, "Switch Video Mode "  + " to  " + videomode);
+		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
+	}
+	
 	/* 处理选择视频源的消息 */
 	private void process_video_src_select(int btn_id) {
 		Button btn;
@@ -1166,6 +1292,9 @@ public class WifiRobotActivity extends Activity {
 				toast_str = "Switch to openCV video ," + toast_str;
 				break;
 			}
+			/*测试并发送切换的视频模式*/
+			checkSendSwitchVideoModeMsg(video_source_sel);
+			
 			disp_toast(toast_str);
 			
 			/*
