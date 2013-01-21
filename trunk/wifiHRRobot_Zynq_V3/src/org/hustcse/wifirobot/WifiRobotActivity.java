@@ -1347,9 +1347,9 @@ public class WifiRobotActivity extends Activity {
 				/* 先退出之前的视频源 */
 				if (m_DrawVideo != null) {
 					m_DrawVideo.exit_thread();
-					m_DrawVideo.stop();
+					//m_DrawVideo.stop();
 				}
-				btn.setText(R.string.button_video_start);
+				btn_video.setText(R.string.button_video_start);
 				img_camera.setImageResource(R.drawable.zynq_logo);
 				video_flag = false;
 				/* 切换为新的视频源 */
@@ -1417,7 +1417,7 @@ public class WifiRobotActivity extends Activity {
 					} else {
 						if (m_DrawVideo != null) {
 							m_DrawVideo.exit_thread();
-							m_DrawVideo.stop();
+							//m_DrawVideo.stop();
 						}
 						btn.setText(R.string.button_video_start);
 						img_camera.setImageResource(R.drawable.zynq_logo);
