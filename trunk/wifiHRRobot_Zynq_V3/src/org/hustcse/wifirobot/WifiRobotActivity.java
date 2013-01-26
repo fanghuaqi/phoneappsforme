@@ -210,6 +210,7 @@ public class WifiRobotActivity extends Activity {
 
 	private long start_time = 0;
 	private long end_time = 0;
+	private int gl_video_state = 0;
 
 	private long benchmark_start = 0;
 	private long benchmark_end = 0;
@@ -988,10 +989,13 @@ public class WifiRobotActivity extends Activity {
 				img_camera.setImageResource(R.drawable.zynq_logo);
 				break;
 			case MSG_VIDEO_END:
-				((Button) findViewById(R.id.button_video))
+				if (!video_flag){ /*如果此时没有在显示视频数据才显示结束按钮以及切换LOGO显示*/
+					((Button) findViewById(R.id.button_video))
 						.setText(R.string.button_video_start);
-				// disp_toast("Getting remote video failed,please check the video address!");
-				img_camera.setImageResource(R.drawable.zynq_logo);
+					// disp_toast("Getting remote video failed,please check the video address!");
+					img_camera.setImageResource(R.drawable.zynq_logo);
+				}
+				
 				// disp_toast("获取视频数据失败,请确认视频网址是否正确!");
 				break;
 			default:
@@ -1179,22 +1183,6 @@ public class WifiRobotActivity extends Activity {
 		}
 	}
 
-	private class VideoCapProgressThread extends Thread {
-		Handler mHandler;
-		boolean image_ok;
-
-		VideoCapProgressThread(Handler h) {
-			mHandler = h;
-		}
-
-		public void run() {
-			if (get_remote_image(cur_video_addr) == true) {
-
-			}
-			mHandler.obtainMessage(IMGCAP_DIALOG_KEY).sendToTarget();
-
-		}
-	}
 
 	private OnClickListener image_acquire_listener = new OnClickListener() {
 		public void onClick(View v) {
@@ -1348,7 +1336,10 @@ public class WifiRobotActivity extends Activity {
 				if (m_DrawVideo != null) {
 					m_DrawVideo.exit_thread();
 					//m_DrawVideo.stop();
+					//while(m_DrawVideo.poll_thread_state()); /*等待线程结束 测试会卡死*/
 				}
+				
+				
 				btn_video.setText(R.string.button_video_start);
 				img_camera.setImageResource(R.drawable.zynq_logo);
 				video_flag = false;
@@ -1418,6 +1409,7 @@ public class WifiRobotActivity extends Activity {
 						if (m_DrawVideo != null) {
 							m_DrawVideo.exit_thread();
 							//m_DrawVideo.stop();
+							//while(m_DrawVideo.poll_thread_state()); /*等待线程结束*/
 						}
 						btn.setText(R.string.button_video_start);
 						img_camera.setImageResource(R.drawable.zynq_logo);
@@ -1912,6 +1904,7 @@ public class WifiRobotActivity extends Activity {
 		HttpResponse httpResponse;
 		Bitmap bmp = null;
 		private boolean exit_flag = false;
+		private boolean thread_state = false;
 
 		public DrawVideo(String url_addr, Handler handler) {
 			m_video_addr = url_addr;
@@ -1920,6 +1913,10 @@ public class WifiRobotActivity extends Activity {
 
 		public void exit_thread() {
 			exit_flag = true;
+		}
+		
+		public boolean poll_thread_state(){
+			return thread_state;
 		}
 
 		public boolean testconnection() {
@@ -1956,21 +1953,24 @@ public class WifiRobotActivity extends Activity {
 			try {
 				httpRequest = new HttpGet(m_video_addr);
 				httpclient = new DefaultHttpClient();
-
+				
+				thread_state = true;
 				while (!exit_flag) {
 					httpResponse = httpclient.execute(httpRequest);
-
-					if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-						m_InputStream = httpResponse.getEntity().getContent();
-						bmp = BitmapFactory.decodeStream(m_InputStream);// 从获取的流中构建出BMP图像
+					
+					if (!exit_flag){ /* 由于上面的语句执行的时间很长,因此这里还需要判断一次是否退出 */
+						if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+							m_InputStream = httpResponse.getEntity().getContent();
+							bmp = BitmapFactory.decodeStream(m_InputStream);// 从获取的流中构建出BMP图像
+						}
+	
+						if ((bmp != null) && (!exit_flag) ) {
+							img_camera_bmp = bmp;
+							video_Handler.obtainMessage(MSG_VIDEO_UPDATE)
+									.sendToTarget();
+						}
+						sleep(20);
 					}
-
-					if (bmp != null) {
-						img_camera_bmp = bmp;
-						video_Handler.obtainMessage(MSG_VIDEO_UPDATE)
-								.sendToTarget();
-					}
-					sleep(30);
 				}
 				exit_flag = false;
 			} catch (Exception e) {
@@ -1985,8 +1985,10 @@ public class WifiRobotActivity extends Activity {
 						&& (httpclient.getConnectionManager() != null)) {
 					httpclient.getConnectionManager().shutdown(); /* 及时关闭httpclient释放资源 */
 				}
-				video_Handler.obtainMessage(MSG_VIDEO_END).sendToTarget();
+				video_Handler.obtainMessage(MSG_VIDEO_END).sendToTarget(); /*正常结束无需操作 避免显示时串了*/
+				Log.e(TAG, "End of Get Video");
 			}
+			thread_state = false;
 		}
 	}
 }
