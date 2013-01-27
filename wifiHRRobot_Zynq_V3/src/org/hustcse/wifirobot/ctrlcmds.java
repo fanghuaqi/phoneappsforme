@@ -19,6 +19,7 @@ public class ctrlcmds {
 	public static final short OPERATE_ARM = (WRITE_CMD_BASE + 13);
 	public static final short ADJUST_VIDEO_MODE = (WRITE_CMD_BASE + 14);
 	public static final short LASER_CTRL = (WRITE_CMD_BASE + 15);
+	public static final short ARM_OC_CTRL = (WRITE_CMD_BASE + 16);
 	
 	/*获取小车摄像头图像和视频*/
 	public static final short UDP_DATA_ACQ_BASE = 0x100;
