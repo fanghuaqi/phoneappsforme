@@ -234,8 +234,8 @@ public class WifiRobotActivity extends Activity {
 	private final static int LASER_ON = 1;
 	private int laser_ctrl = LASER_OFF;
 	
-	private final static int MHE_ARM_OPEN= 0;
-	private final static int MHE_ARM_CLOSE= 1;
+	private final static int MHE_ARM_OPEN = 1;
+	private final static int MHE_ARM_CLOSE = 0;
 	private int machine_arm_ctrl = MHE_ARM_CLOSE;
 
 	/** Called when the activity is first created. */
