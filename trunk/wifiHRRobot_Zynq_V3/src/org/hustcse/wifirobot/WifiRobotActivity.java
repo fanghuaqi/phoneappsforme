@@ -115,6 +115,7 @@ public class WifiRobotActivity extends Activity {
 	Button btn_control_mode;
 	Button btn_connect;
 	Button btn_laser_ctrl;
+	Button btn_arm_ctrl;
 
 	ImageView img_camera;
 
@@ -205,7 +206,7 @@ public class WifiRobotActivity extends Activity {
 	LayoutParams joyviewParams;
 	LayoutParams joyviewParamsArm;	
 	
-	private float btn_scale = (float) 42;
+	private float btn_scale = (float) 60;
 	private float txtview_scale = (float) 42;
 
 	private long start_time = 0;
@@ -232,6 +233,10 @@ public class WifiRobotActivity extends Activity {
 	private final static int LASER_OFF = 0;
 	private final static int LASER_ON = 1;
 	private int laser_ctrl = LASER_OFF;
+	
+	private final static int MHE_ARM_OPEN= 0;
+	private final static int MHE_ARM_CLOSE= 1;
+	private int machine_arm_ctrl = MHE_ARM_CLOSE;
 
 	/** Called when the activity is first created. */
 	@Override
@@ -269,6 +274,7 @@ public class WifiRobotActivity extends Activity {
 		btn_control_mode = (Button) findViewById(R.id.button_control);
 		btn_connect = (Button) findViewById(R.id.button_connect);
 		btn_laser_ctrl = (Button) findViewById(R.id.button_laser_ctrl);
+		btn_arm_ctrl = (Button) findViewById(R.id.button_arm_ctrl);
 		
 		img_camera = (ImageView) findViewById(R.id.imageView_camera);
 
@@ -293,6 +299,7 @@ public class WifiRobotActivity extends Activity {
 		btn_control_mode.getBackground().setAlpha(100);
 		btn_connect.getBackground().setAlpha(100);
 		btn_laser_ctrl.getBackground().setAlpha(100);
+		btn_arm_ctrl.getBackground().setAlpha(100);
 
 		for (int i = 0; i < 5; i++) {
 			skb_angle[i].setOnSeekBarChangeListener(skb_change_listener); /* 设置seekbar改变的listener */
@@ -306,6 +313,7 @@ public class WifiRobotActivity extends Activity {
 		btn_control_mode.setTextSize(screen_Width / btn_scale);
 		btn_connect.setTextSize(screen_Width / btn_scale);
 		btn_laser_ctrl.setTextSize(screen_Width / btn_scale);
+		btn_arm_ctrl.setTextSize(screen_Width / btn_scale);
 
 		((TextView) findViewById(R.id.TextViewAngle)).setTextSize(screen_Width
 				/ txtview_scale);
@@ -323,7 +331,8 @@ public class WifiRobotActivity extends Activity {
 
 		btn_control_mode.setOnClickListener(ctrl_btn_listener);
 		btn_connect.setOnClickListener(connect_listener);
-		btn_laser_ctrl.setOnClickListener(laser_ctrl_listener);
+		btn_laser_ctrl.setOnClickListener(btn_ctrl_listener);
+		btn_arm_ctrl.setOnClickListener(btn_ctrl_listener);
 
 		log_pass_time("all objects init ok");
 
@@ -1210,14 +1219,14 @@ public class WifiRobotActivity extends Activity {
 		}
 	};
 	
-	private OnClickListener laser_ctrl_listener = new OnClickListener() {
+	private OnClickListener btn_ctrl_listener = new OnClickListener() {
 		public void onClick(View v) {
 			/* 发送激光控制命令 */
-			postLaserCtrlMsg(v.getId());
+			postBtnCtrlMsg(v.getId());
 		}
 	};
 	
-	private void postLaserCtrlMsg(int btn_id) {
+	private void postBtnCtrlMsg(int btn_id) {
 		short ctrl_cmd;
 		short ctrl_prefix;
 		byte[] msg = new byte[1];
@@ -1226,21 +1235,38 @@ public class WifiRobotActivity extends Activity {
 		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
 				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
 				ctrl_prefixs.withoutack);
-		ctrl_cmd = ctrlcmds.LASER_CTRL;
 		
 		btn = (Button) findViewById(btn_id);
-		
-		if (laser_ctrl == LASER_OFF){
-			btn.setText(R.string.button_laser_off);
-			laser_ctrl = LASER_ON;
-		}else{
-			btn.setText(R.string.button_laser_on);
-			laser_ctrl = LASER_OFF;
+
+		switch (btn_id){
+			case R.id.button_laser_ctrl:
+				ctrl_cmd = ctrlcmds.LASER_CTRL;
+				if (laser_ctrl == LASER_OFF){
+					btn.setText(R.string.button_laser_off);
+					laser_ctrl = LASER_ON;
+				}else{
+					btn.setText(R.string.button_laser_on);
+					laser_ctrl = LASER_OFF;
+				}
+				msg[0] = (byte) (laser_ctrl & 0xff);
+				Log.d(TAG, "Switch Laser Ctrl "  + " to  " + laser_ctrl);
+				break;
+			case R.id.button_arm_ctrl:
+				ctrl_cmd = ctrlcmds.ARM_OC_CTRL;
+				if (machine_arm_ctrl == MHE_ARM_CLOSE){
+					btn.setText(R.string.button_arm_close);
+					machine_arm_ctrl = MHE_ARM_OPEN;
+				}else{
+					btn.setText(R.string.button_arm_open);
+					machine_arm_ctrl = MHE_ARM_CLOSE;
+				}
+				msg[0] = (byte) (machine_arm_ctrl & 0xff);
+				Log.d(TAG, "Switch Arm Open_Close Ctrl "  + " to  " + machine_arm_ctrl);
+				break;
+			default:
+				return;
 		}
 		
-		msg[0] = (byte) (laser_ctrl & 0xff);
-
-		Log.d(TAG, "Switch Laser Ctrl "  + " to  " + laser_ctrl);
 		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
 	}
 

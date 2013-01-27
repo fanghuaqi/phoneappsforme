@@ -18,6 +18,8 @@
 		<string name="button_video_src_opencv">OPENCV</string>
 		<string name="button_laser_on">LASER ON</string>
 		<string name="button_laser_off">LASER OFF</string>
+		<string name="button_arm_open">ARM OPEN</string>
+		<string name="button_arm_close">ARM CLOSE</string>
         <string name="button_video_start">Video Start</string>
         <string name="button_realcontrol">Manual</string>
         <string name="button_autocontrol"> Auto </string>

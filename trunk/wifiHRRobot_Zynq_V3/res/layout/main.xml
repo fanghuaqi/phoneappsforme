@@ -80,11 +80,21 @@
             android:visibility="visible" />
         
         <Button
-            android:id="@+id/button_control"
+            android:id="@+id/button_arm_ctrl"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toLeftOf="@id/button_laser_ctrl"
             android:layout_alignTop="@id/button_laser_ctrl"
+            android:layout_marginRight="5dp"
+            android:text="@string/button_arm_open"
+            android:visibility="visible" />
+        
+        <Button
+            android:id="@+id/button_control"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toLeftOf="@id/button_arm_ctrl"
+            android:layout_alignTop="@id/button_arm_ctrl"
             android:layout_marginRight="5dp"
             android:text="@string/button_autocontrol"
             android:visibility="visible" />
