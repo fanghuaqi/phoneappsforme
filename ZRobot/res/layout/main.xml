@@ -4,13 +4,6 @@
     android:layout_width="fill_parent"
     android:layout_height="fill_parent" >
 
-    <SurfaceView
-        android:id="@+id/SurfaceView_camera"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:clickable="false"
-        android:visibility="invisible" />
-
     <ImageView
         android:id="@+id/imageView_camera"
         android:layout_width="fill_parent"
@@ -31,7 +24,7 @@
             android:layout_height="175dp"
             android:layout_alignParentBottom="true"
             android:layout_alignParentLeft="true" />
-        
+
         <com.MobileAnarchy.Android.Widgets.Joystick.JoystickView
             android:id="@+id/joystickARM"
             android:layout_width="175dp"
@@ -43,11 +36,10 @@
             android:id="@+id/button_video"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
             android:layout_alignParentRight="true"
-	        android:layout_marginTop="5dip"
+            android:layout_alignParentTop="true"
+            android:layout_marginTop="5dip"
             android:text="@string/button_video_start" />
-
 
         <Button
             android:id="@+id/button_image"
@@ -56,119 +48,48 @@
             android:layout_above="@id/button_video"
             android:layout_alignLeft="@id/button_video"
             android:layout_alignParentRight="true"
-            android:text="@string/button_image" 
-            android:enabled="false"				
+            android:enabled="false"
+            android:text="@string/button_image"
             android:visibility="invisible" />
-        
+
         <Button
             android:id="@+id/button_video_src"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toLeftOf="@id/button_video"
             android:layout_alignTop="@id/button_video"
             android:layout_marginRight="5dp"
+            android:layout_toLeftOf="@id/button_video"
             android:text="@string/button_video_src_car" />
-        
+
         <Button
             android:id="@+id/button_laser_ctrl"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toLeftOf="@id/button_video_src"
             android:layout_alignTop="@id/button_video_src"
             android:layout_marginRight="5dp"
+            android:layout_toLeftOf="@id/button_video_src"
             android:text="@string/button_laser_on"
             android:visibility="visible" />
-        
+
         <Button
             android:id="@+id/button_control"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toLeftOf="@id/button_laser_ctrl"
             android:layout_alignTop="@id/button_laser_ctrl"
             android:layout_marginRight="5dp"
+            android:layout_toLeftOf="@id/button_laser_ctrl"
             android:text="@string/button_autocontrol"
             android:visibility="visible" />
-        
+
         <Button
             android:id="@+id/button_connect"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toLeftOf="@id/button_control"
             android:layout_alignTop="@id/button_control"
-            android:layout_marginRight="5dp"            
+            android:layout_marginRight="5dp"
+            android:layout_toLeftOf="@id/button_control"
             android:text="@string/button_connect"
             android:visibility="visible" />
-        
-        <SeekBar
-            android:id="@+id/seekbar_angle1"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignTop="@id/button_control"
-            android:layout_alignParentTop="true"
-            android:layout_toLeftOf="@id/button_control"
-            android:layout_marginRight="5dp"
-            android:maxHeight="20dp"
-            android:minHeight="20dp"
-            android:minWidth="150dp"
-            android:scrollbarStyle="outsideOverlay" 
-            android:clickable="false"
-            android:visibility="invisible"/>
-        
-        <SeekBar
-            android:id="@+id/seekbar_angle2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/seekbar_angle1"
-            android:layout_marginTop="5dp"
-            android:layout_alignLeft="@id/seekbar_angle1"
-            android:layout_alignRight="@id/seekbar_angle1"
-            android:maxHeight="20dp"
-            android:minHeight="20dp"
-            android:scrollbarStyle="outsideOverlay"  
-            android:clickable="false"
-            android:visibility="invisible"/>
-        
-        <SeekBar
-            android:id="@+id/seekbar_angle3"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/seekbar_angle2"
-            android:layout_marginTop="5dp"
-            android:layout_alignLeft="@id/seekbar_angle1"
-            android:layout_alignRight="@id/seekbar_angle1"
-            android:maxHeight="20dp"
-            android:minHeight="20dp"
-            android:scrollbarStyle="outsideOverlay"  
-            android:clickable="false"
-            android:visibility="invisible"/>
-        
-        <SeekBar
-            android:id="@+id/seekbar_angle4"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/seekbar_angle3"
-            android:layout_marginTop="5dp"
-            android:layout_alignLeft="@id/seekbar_angle1"
-            android:layout_alignRight="@id/seekbar_angle1"
-            android:maxHeight="20dp"
-            android:minHeight="20dp"
-            android:scrollbarStyle="outsideOverlay"  
-            android:clickable="false"
-            android:visibility="invisible"/>
-        
-        <SeekBar
-            android:id="@+id/seekbar_angle5"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/seekbar_angle4"
-            android:layout_marginTop="5dp"
-            android:layout_alignLeft="@id/seekbar_angle1"
-            android:layout_alignRight="@id/seekbar_angle1"
-            android:maxHeight="20dp"
-            android:minHeight="20dp"
-            android:scrollbarStyle="outsideOverlay" 
-            android:clickable="false"
-            android:visibility="invisible"/>
     </RelativeLayout>
 
     <TableLayout
@@ -187,8 +108,8 @@
                 android:layout_marginLeft="10dp"
                 android:text="Angle"
                 android:textColor="#CC0000"
-                android:textSize="25sp" 
-                android:visibility="invisible">
+                android:textSize="25sp"
+                android:visibility="invisible" >
             </TextView>
 
             <TextView
@@ -198,8 +119,8 @@
                 android:layout_marginLeft="10dp"
                 android:text=""
                 android:textColor="#669900"
-                android:textSize="25sp" 
-                android:visibility="invisible">
+                android:textSize="25sp"
+                android:visibility="invisible" >
             </TextView>
         </TableRow>
 
@@ -212,8 +133,8 @@
                 android:layout_marginLeft="10dp"
                 android:text="Speed"
                 android:textColor="#CC0000"
-                android:textSize="25sp" 
-                android:visibility="invisible">
+                android:textSize="25sp"
+                android:visibility="invisible" >
             </TextView>
 
             <TextView
@@ -223,10 +144,11 @@
                 android:layout_marginLeft="10dp"
                 android:text=""
                 android:textColor="#669900"
-                android:textSize="25sp" 
-                android:visibility="invisible">
+                android:textSize="25sp"
+                android:visibility="invisible" >
             </TextView>
         </TableRow>
+
         <TableRow>
 
             <TextView
@@ -234,8 +156,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginLeft="10dp"
-                android:text="Robot "
                 android:gravity="center"
+                android:text="Robot "
                 android:textColor="#CC0000"
                 android:textSize="15sp" >
             </TextView>

@@ -77,7 +77,7 @@ public class ctrl_frame {
 			return false;
 		}
 		if (this.available){
-			tmp2 = ((int)ctrlcode << 16) + (int)datalength;
+			tmp2 = (ctrlcode << 16) + datalength;
 			msg[0] = (byte) ((tmp2 >> 24) & 0xff);
 			msg[1] = (byte) ((tmp2 >> 16) & 0xff);
 			msg[2] = (byte) ((tmp2 >> 8) & 0xff);
@@ -98,8 +98,8 @@ public class ctrl_frame {
 			ercd = false;
 		}else{
 			if (msg.length >= 4){
-				this.ctrl_prefix = (short) ( ((short)msg[0] >> 4) );
-				this.ctrl_cmd = (short) ( ( ((short)msg[0] & 0xf) << 8) + ((short)msg[1]));
+				this.ctrl_prefix = (short) ( (msg[0] >> 4) );
+				this.ctrl_cmd = (short) ( ( (msg[0] & 0xf) << 8) + msg[1]);
 				decode_ctrlprefix();
 				encode_ctrlcode();
 				if (this.datalength > 0){
