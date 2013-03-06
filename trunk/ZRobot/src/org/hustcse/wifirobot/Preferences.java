@@ -7,7 +7,7 @@ import android.preference.PreferenceActivity;
 import android.util.Log;
 
 public class Preferences extends PreferenceActivity implements OnPreferenceChangeListener{
-	private static String TAG = "PreferenceHRRobot";
+	private static String TAG = "PreferenceZRobot";
 
 	/** Called when the activity is first created. */
 	@Override
