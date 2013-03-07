@@ -239,6 +239,7 @@ public class WifiRobotActivity extends Activity {
 
 
 	/** Called when the activity is first created. */
+	/** 所谓的主函数 **/
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		Log.i(TAG, "program startup");
@@ -379,6 +380,814 @@ public class WifiRobotActivity extends Activity {
 		super.onResume();
 	}
 
+	/* 创建一个按下Menu键弹出的Menu选择框 
+	 * menu 位于res/menu/menu.xml */
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		MenuInflater inflater = getMenuInflater();
+		inflater.inflate(R.menu.menu, menu);
+		return true;
+	}
+
+	/* 更新preference中的设置数据 */
+	public void update_preference() {
+		int temp;
+		try {
+			video_addr[0] = preferences.getString(
+					getResources().getString(R.string.videoaddr1),
+					CAR_VIDEO_ADDR);
+			video_addr[1] = preferences.getString(
+					getResources().getString(R.string.videoaddr2),
+					ARM_VIDEO_ADDR);
+			video_addr[2] = preferences.getString(
+					getResources().getString(R.string.videoaddr3),
+					OPENCV_VIDEO_ADDR);
+			dist_tcp_addr = preferences.getString(
+					getResources().getString(R.string.distipaddr),
+					DIST_TCPIPADDR);
+			/* NOTICE 这里需要注意下
+			 * 需要尝试读取TCP端口号
+			 * 由于暂时我也不清楚如何创建一个只能输入数字的文本框
+			 * 所以只能在这里判断一下用户输入的PORT号是否为数字
+			 * 不是数字的话就强制将文本框内容改为默认的PORT */
+			try {
+				temp = Integer.parseInt((preferences.getString(getResources()
+						.getString(R.string.disttcpport), String
+						.valueOf(DIST_TCPPORT))));
+				dist_tcp_port = temp;
+			} catch (Exception e) {
+				/* 强制将preference中的错误输入恢复为默认 */
+				SharedPreferences.Editor editor = preferences.edit();
+				editor.putString(
+						getResources().getString(R.string.disttcpport),
+						String.valueOf(dist_tcp_port));
+				editor.commit();
+			}
+		} catch (Exception e) {
+			Log.d(TAG, e.toString());
+		}
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		int ItemId; 
+		
+		/* 获取选中的Menu菜单的ID号 */
+		ItemId = item.getItemId() ;
+		
+		switch (ItemId){
+		case R.id.Settings:
+			/* 跳转到对应的preference类 */
+			startActivityForResult(new Intent(this, Preferences.class),
+					REQ_SYSTEM_SETTINGS);
+			break;
+		default:
+			break;
+		}
+		return true;
+	}
+
+	@Override
+	public boolean onKeyDown(int keyCode, KeyEvent event) {
+		if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0) {
+			/* 按下的如果是BACK，同时没有重复 
+			 * 程序强制退出
+			 * TODO 缺乏资源释放? */
+			Log.d(TAG, "Program Exit!");
+			System.exit(0);
+		}
+		return super.onKeyDown(keyCode, event);
+	}
+
+	/* 建立TCP连接按钮对应的Listener  */
+	private OnClickListener connect_listener = new OnClickListener() {
+		@Override
+		public void onClick(View v) {
+			/* 更新对应的preference中的内容
+			 * 主要是各种视频地址
+			 * TCP服务器的IP以及PORT */
+			update_preference();
+			showDialog(CONNECT_DIALOG_KEY);
+		}
+	};
+	
+	/* 视频源切换按钮的listener */
+	private OnClickListener video_src_acquire_listener = new OnClickListener() {
+		@Override
+		public void onClick(View v) {
+			process_video_src_select(v.getId());
+		}
+	};
+
+	/* 获取视频按钮的listener */
+	private OnClickListener video_acquire_listener = new OnClickListener() {
+		@Override
+		public void onClick(View v) {
+			post_ctrl_btnclk_msg(v.getId());
+		}
+	};
+
+	/* 其他控制按钮的Listener */
+	private OnClickListener ctrl_btn_listener = new OnClickListener() {
+		@Override
+		public void onClick(View v) {
+			/* 根据小车控制按钮的id来处理事件 */
+			post_ctrl_btnclk_msg(v.getId());
+		}
+	};
+
+	/* 激光控制按钮的Listener */
+	private OnClickListener laser_ctrl_listener = new OnClickListener() {
+		@Override
+		public void onClick(View v) {
+			/* 发送激光控制命令 */
+			postLaserCtrlMsg(v.getId());
+		}
+	};
+	
+	/* 方向以及速度控制摇杆的Listener定义实现 */
+	private JoystickMovedListener joystickctrl_listener = new JoystickMovedListener() {
+		@Override
+		public void OnMoved(int pan, int tilt) {
+			int operate_x = 0;
+			int operate_y = 0;
+
+			operate_x = pan;
+			operate_y = -tilt;
+			calc_speed_and_angle(operate_x, operate_y);
+			txtAngle.setText(Integer.toString(operate_angle));
+			txtSpeed.setText(Integer.toString(operate_speed));
+			checkSendOperateCarMsg();
+			/* 进程主动让出控制权，
+			 * 这样的话,在操作摇杆时还是可以显示动态图像的
+			 * 虽然效果不好 */
+			Thread.yield(); 
+		}
+
+		@Override
+		public void OnReleased() {
+			txtAngle.setText("released");
+			txtSpeed.setText("released");
+			Thread.yield();
+		}
+
+		@Override
+		public void OnReturnedToCenter() {
+			txtAngle.setText("stopped");
+			txtSpeed.setText("stopped");
+			operate_angle = 0;
+			operate_speed = 0;
+			checkSendOperateCarMsg();
+			Thread.yield();
+		};
+	};
+
+	/* 机械臂控制的摇杆的listener实现 */
+	private JoystickMovedListener joystickarm_listener = new JoystickMovedListener() {
+		@Override
+		public void OnMoved(int pan, int tilt) {
+			int operate_x = 0;
+			int operate_y = 0;
+
+			operate_x = pan;
+			operate_y = -tilt;
+			calc_arm_xy(operate_x, operate_y);
+
+			checkSendOperateArmMsg();
+			/* 进程主动让出控制权，
+			 * 这样的话,在操作摇杆时还是可以显示动态图像的
+			 * 虽然效果不好 */
+			Thread.yield(); 
+		}
+
+		@Override
+		public void OnReleased() {
+			Thread.yield();
+		}
+
+		@Override
+		public void OnReturnedToCenter() {
+			arm_x_offset = 0;
+			arm_y_offset = 0;
+			checkSendOperateArmMsg();
+			Thread.yield();
+		};
+	};
+
+	/*** OPERATE CAR ***/
+	/* 发送获取角度控制和速度控制的命令 */
+	private void postOperateCarMessage(int angle, int speed) {
+		short ctrl_cmd;
+		short ctrl_prefix;
+		byte[] msg = new byte[4];
+
+		/* 准备待发送的TCP消息数据 */
+		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
+				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
+				ctrl_prefixs.withoutack);
+		ctrl_cmd = ctrlcmds.OPERATE_CAR;
+		msg[0] = (byte) (angle & 0xff);
+		msg[1] = (byte) ((angle >> 8) & 0xff);
+		msg[2] = (byte) (speed & 0xff);
+		msg[3] = (byte) ((speed >> 8) & 0xff);
+
+		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
+	}
+	
+	/* 测试是否角度和速度没有改变 并发送控制小车命令 */
+	private void checkSendOperateCarMsg() {
+		/* 检查当前的角度或者速度是否改变 */
+		if (!((operate_angle == operate_angle_last) && (operate_speed == operate_speed_last))) {
+			/* 当前socket可用才进行数据发送 */
+			if ((tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK())) { 
+				postOperateCarMessage(operate_angle, operate_speed);
+			}
+			operate_angle_last = operate_angle;
+			operate_speed_last = operate_speed;
+		}
+	}
+
+	/* 通过当前坐标计算角度和速度信息 */
+	private void calc_speed_and_angle(int operate_x, int operate_y) {
+		operate_speed = (int) Math.sqrt((operate_x * operate_x)
+				+ (operate_y * operate_y));
+
+		if (operate_y < 0) {
+			operate_speed = -operate_speed;
+		}
+
+		if (operate_x == 0) {
+			if (operate_y == 0) {
+				operate_angle = 0;
+			} else if (operate_y > 0) {
+				operate_angle = 90;
+			} else {
+				operate_angle = -90;
+			}
+		} else if (operate_y == 0) {
+			if (operate_x == 0) {
+				operate_angle = 0;
+			} else if (operate_x > 0) {
+				operate_angle = 0;
+			} else {
+				operate_angle = 180;
+			}
+		} else {
+			operate_angle = (int) ((Math.atan2(operate_y, operate_x) / Math.PI) * 180);
+		}
+
+		if (operate_speed == 0) {
+			operate_angle = 0;
+		} else if (operate_speed > 0) {
+			operate_angle = 90 - operate_angle;
+		} else {
+			operate_angle = operate_angle + 90;
+		}
+
+		if (operate_speed > MAX_SPEED_UNIT) {
+			operate_speed = MAX_SPEED_UNIT;
+		} else if (operate_speed < -MAX_SPEED_UNIT) {
+			operate_speed = -MAX_SPEED_UNIT;
+		}
+		operate_speed = operate_speed * SPEED_SCALE;
+
+	}
+
+
+
+	/*** OPERATE_ARM ***/
+	/* 发送获取机械臂XY控制的命令 */
+	private void postOperateArmMessage(int x, int y) {
+		short ctrl_cmd;
+		short ctrl_prefix;
+		byte[] msg = new byte[4];
+
+		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
+				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
+				ctrl_prefixs.withoutack);
+		ctrl_cmd = ctrlcmds.OPERATE_ARM;
+		msg[0] = (byte) (x & 0xff);
+		msg[1] = (byte) ((x >> 8) & 0xff);
+		msg[2] = (byte) (y & 0xff);
+		msg[3] = (byte) ((y >> 8) & 0xff);
+
+		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
+	}
+	
+	/* 测试机械臂的XY是否没有改变 并发送控制机械臂命令 */
+	private void checkSendOperateArmMsg() {
+		if (!((arm_x_offset == arm_x_offset_last) && (arm_y_offset == arm_y_offset_last))) {
+			if ((tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK())) {
+				/*
+				 * 当前socket可用才进行数据发送
+				 */
+				postOperateArmMessage(arm_x_offset, arm_y_offset);
+			}
+			arm_x_offset_last = arm_x_offset;
+			arm_y_offset_last = arm_y_offset;
+		}
+	}
+	
+	/* 计算机械臂的X,Y偏移值 */
+	private void calc_arm_xy(int operate_x, int operate_y) {
+		if (operate_x > MAX_ARM_UNIT) {
+			operate_x = MAX_ARM_UNIT;
+		} else if (operate_x < -MAX_ARM_UNIT) {
+			operate_x = -MAX_ARM_UNIT;
+		}
+
+		if (operate_y > MAX_ARM_UNIT) {
+			operate_y = MAX_ARM_UNIT;
+		} else if (operate_y < -MAX_ARM_UNIT) {
+			operate_y = -MAX_ARM_UNIT;
+		}
+
+		arm_x_offset = operate_x * ARM_X_SCALE;
+		arm_y_offset = operate_y * ARM_Y_SCALE;
+	}
+
+
+
+	/* 用于tcp_ctrl类的handler 
+	 * 主要是有些需要更新UI之类的操作 */
+	private final Handler mHandler_UpdateUI = new Handler() {
+		@Override
+		public void handleMessage(Message msg) {
+			switch (msg.what) {
+			case MSG_DISPLAY_TOAST:
+				disp_toast((String) msg.obj);
+				break;
+			case (MSG_FIX_PREFERENCE + FIX_IP_PREFERENCE):
+				String ip = (String) msg.obj;
+				SharedPreferences.Editor editor = preferences.edit();
+				editor.putString(getResources().getString(R.string.distipaddr),
+						ip);
+				editor.commit();
+				break;
+			default:
+				break;
+			}
+
+		}
+	};
+
+
+
+	/* 根据不同的进度框ID创建进度框 */
+	@Override
+	protected Dialog onCreateDialog(int id) {
+		switch (id) {
+		case CONNECT_DIALOG_KEY:
+			/* 在当前的Activity下创建一个进度框 */
+			mDialog_Connect = new ProgressDialog(WifiRobotActivity.this);
+			/* 设置进度框上显示的消息 */
+			mDialog_Connect.setMessage("Trying to connect to TCP server...");
+			/* 设置进度框为不可取消的
+			 * 这样设置的目的由于对话框运行时后台有进程在运行
+			 * 如果取消的话,后台的进程没有结束,会导致一些无法预料的问题 */
+			mDialog_Connect.setCancelable(false);
+			return mDialog_Connect;
+		case IMGCAP_DIALOG_KEY:
+			mDialog_ImageCap = new ProgressDialog(WifiRobotActivity.this);
+			mDialog_ImageCap.setMessage("Trying to obtain image ...");
+			mDialog_ImageCap.setCancelable(false);
+			return mDialog_ImageCap;
+		case VIDEOCAP_DIALOG_KEY:
+			mDialog_VideoCap = new ProgressDialog(WifiRobotActivity.this);
+			mDialog_VideoCap.setMessage("Trying to obtain video ...");
+			mDialog_VideoCap.setCancelable(false);
+			return mDialog_VideoCap;
+		default:
+			return null;
+		}
+	}
+
+
+
+	/***
+	 * 尝试连接进度框
+	 * 尝试获取远程图片进度框
+	 * 尝试获取远程视频进度框
+	 * ***/
+	@Override
+	protected void onPrepareDialog(int id, Dialog dialog) {
+		switch (id) {
+		case CONNECT_DIALOG_KEY:
+			ConnectProgressThread mConnectProgressThread = new ConnectProgressThread(
+					progress_handler);
+			mConnectProgressThread.start();
+			break;
+		case IMGCAP_DIALOG_KEY:
+			ImageCapProgressThread mCapProgressThread = new ImageCapProgressThread(
+					progress_handler, IMGCAP_DIALOG_KEY);
+			mCapProgressThread.start();
+			break;
+		case VIDEOCAP_DIALOG_KEY:
+			ImageCapProgressThread mCapProgressThread2 = new ImageCapProgressThread(
+					progress_handler, VIDEOCAP_DIALOG_KEY);
+			mCapProgressThread2.start();
+			break;
+		default:
+			break;
+		}
+
+	}
+
+	/* 处理各种进度框的消息 */
+	final Handler progress_handler = new Handler() {
+		@Override
+		public void handleMessage(Message msg) {
+			if (msg.what <= VIDEOCAP_DIALOG_KEY) {
+				dismissDialog(msg.what);
+			}
+
+			switch (msg.what) {
+			case CONNECT_DIALOG_KEY:
+				if (msg.obj != null) {
+					disp_toast((String) msg.obj);
+				}
+				if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()) {
+					txtTCPState.setText(R.string.tcpstate_online);
+				} else {
+					txtTCPState.setText(R.string.tcpstate_offline);
+				}
+				break;
+			case IMGCAP_DIALOG_KEY:
+				image_ready_flag = (Boolean) (msg.obj);
+				if (image_ready_flag == true) {
+					img_camera.setImageBitmap(img_camera_bmp);
+				} else {
+					disp_toast("Get remote image failed,please check the video address!");
+				}
+				break;
+			case VIDEOCAP_DIALOG_KEY:
+				video_ready_flag = (Boolean) (msg.obj);
+				if (video_ready_flag == true) {
+					img_camera.setImageBitmap(img_camera_bmp);
+					/* 检查到视频数据正常 
+					 * 就可以创建一个用于显示视频数据的类*/
+					m_DrawVideo = new DrawVideo(cur_video_addr,
+							mHandler_video_process);
+					m_DrawVideo.start();
+					btn_video.setText(R.string.button_video_stop);
+					video_flag = true;
+				} else {
+					disp_toast("Get remote video failed,please check the video address!");
+				}
+				break;
+			case MSG_DISPLAY_TOAST:
+				break;
+
+			default:
+				break;
+			}
+		}
+	};
+
+	/* 检查TCP连接是否已经连接或者
+	 * 连接的IP和Port已经更新 就需要重新连接  */
+	private class ConnectProgressThread extends Thread {
+		Handler mHandler;
+		String msg = null;
+
+		ConnectProgressThread(Handler h) {
+			mHandler = h;
+		}
+
+		@Override
+		public void run() {
+			if (tcp_ctrl_obj.mTcp_ctrl_client.updateIPandPort(dist_tcp_addr,
+					dist_tcp_port)
+					|| (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK() == false)) {
+				/*
+				 * 检查是否有如下情况:
+				 * 1. TCP连接的IP或者端口有更改
+				 * 2. TCP连接没有建立
+				 */
+				/* 强制建立TCP连接 */
+				tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect(true);
+			} else {
+				msg = new String("Already Connected to TCP Server @"
+						+ dist_tcp_addr + ":" + dist_tcp_port);
+			}
+			mHandler.obtainMessage(CONNECT_DIALOG_KEY, msg).sendToTarget();
+		}
+	}
+
+	/* 检查是否图像或者视频数据准备好了 */
+	private class ImageCapProgressThread extends Thread {
+		Handler mHandler;
+		boolean image_ok = false;
+		int dialog_key;
+
+		ImageCapProgressThread(Handler h, int id) {
+			mHandler = h;
+			dialog_key = id;
+		}
+
+		@Override
+		public void run() {
+			image_ok = get_remote_image(cur_video_addr);
+			mHandler.obtainMessage(dialog_key, image_ok).sendToTarget();
+		}
+	}
+
+
+	/*** LASER_CTRL ***/
+	/* 发送激光控制的TCP消息 */
+	private void postLaserCtrlMsg(int btn_id) {
+		short ctrl_cmd;
+		short ctrl_prefix;
+		byte[] msg = new byte[1];
+		Button btn;
+
+		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
+				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
+				ctrl_prefixs.withoutack);
+		ctrl_cmd = ctrlcmds.LASER_CTRL;
+
+		btn = (Button) findViewById(btn_id);
+
+		if (laser_ctrl == LASER_OFF) {
+			btn.setText(R.string.button_laser_off);
+			laser_ctrl = LASER_ON;
+		} else {
+			btn.setText(R.string.button_laser_on);
+			laser_ctrl = LASER_OFF;
+		}
+
+		msg[0] = (byte) (laser_ctrl & 0xff);
+
+		Log.d(TAG, "Switch Laser Ctrl " + " to  " + laser_ctrl);
+		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
+	}
+
+
+	/*** ADJUST_VIDEO_MODE ***/
+	/* 发送切换视频模式的指令 */
+	private void postSwitchVideoModeMsg(int videomode) {
+		short ctrl_cmd;
+		short ctrl_prefix;
+		byte[] msg = new byte[1];
+
+		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
+				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
+				ctrl_prefixs.withoutack);
+		ctrl_cmd = ctrlcmds.ADJUST_VIDEO_MODE;
+		msg[0] = (byte) (videomode & 0xff);
+
+		Log.d(TAG, "Switch Video Mode " + " to  " + videomode);
+		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
+	}
+
+	/* 检查是否可以发送切换视频模式 */
+	private void checkSendSwitchVideoModeMsg(int videomode) {
+		if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()) { 
+			/* 当前socket可用才进行数据发送 */
+			postSwitchVideoModeMsg(videomode);
+		}
+	}
+
+	/* 处理选择视频源的消息 */
+	private void process_video_src_select(int btn_id) {
+		Button btn;
+		String toast_str;
+
+		switch (btn_id) {
+		case R.id.button_video_src:
+			update_preference();
+			btn = (Button) findViewById(R.id.button_video_src);
+			video_source_sel += 1;
+			if (video_source_sel >= MAX_VIDEO_SRC_CNT) {
+				video_source_sel = 0;
+			}
+			/* 选择正确视频源 */
+			cur_video_addr = video_addr[video_source_sel]; 
+			toast_str = new String(" Address : " + cur_video_addr);
+			switch (video_source_sel) {
+			case CAR_VIDEO_SRC:
+				btn.setText(R.string.button_video_src_car);
+				toast_str = "Switch to car video ," + toast_str;
+				break;
+			case ARM_VIDEO_SRC:
+				btn.setText(R.string.button_video_src_arm);
+				toast_str = "Switch to arm video ," + toast_str;
+				break;
+			case OPENCV_VIDEO_SRC:
+				btn.setText(R.string.button_video_src_opencv);
+				toast_str = "Switch to openCV video ," + toast_str;
+				break;
+			}
+			/* 测试并发送切换的视频模式 */
+			checkSendSwitchVideoModeMsg(video_source_sel);
+
+			// disp_toast(toast_str);
+
+			/*
+			 * 如果当前的正在采集视频数据 就需要进行切换, 并且先要将之前的视频掐掉
+			 */
+			if (video_flag == true) {
+				/* 先退出之前的视频源 */
+				if (m_DrawVideo != null) {
+					m_DrawVideo.exit_thread();
+				}
+				btn_video.setText(R.string.button_video_start);
+				img_camera.setImageResource(R.drawable.zynq_logo);
+				video_flag = false;
+				/* 切换为新的视频源 */
+				showDialog(VIDEOCAP_DIALOG_KEY);
+			}
+
+			break;
+		default:
+			return;
+		}
+
+	}
+
+	/*** 
+	 * ENTER_REAL_CONTROL_MODE
+	 * ENTER_AUTO_NAV_MODE 
+	 * IMAGE AND VIDEO 相关
+	 * ***/
+	/* 处理对小车控制按钮的消息
+	 * 图像 视频 自动/手动切换 */
+	private void post_ctrl_btnclk_msg(int btn_id) {
+		short ctrl_cmd = 0;
+		short ctrl_prefix = 0;
+		byte[] msg = null;
+		Button btn;
+		
+		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
+				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
+				ctrl_prefixs.withoutack);
+		switch (btn_id) {
+		case R.id.button_image:
+			update_preference();
+			showDialog(IMGCAP_DIALOG_KEY);
+			return; /* no break, direct return */
+
+		case R.id.button_video:
+			btn = (Button) findViewById(R.id.button_video);
+			update_preference();
+			if (video_flag == false) {
+				/* 选择正确的视频源地址 */
+				cur_video_addr = video_addr[video_source_sel]; 
+				showDialog(VIDEOCAP_DIALOG_KEY);
+			} else {
+				if (m_DrawVideo != null) {
+					m_DrawVideo.exit_thread();
+					// m_DrawVideo.stop();
+				}
+				btn.setText(R.string.button_video_start);
+				img_camera.setImageResource(R.drawable.zynq_logo);
+				video_flag = false;
+			}
+			return; /* no break, direct return */
+			
+			/*** 
+			 * ENTER_REAL_CONTROL_MODE
+			 * ENTER_AUTO_NAV_MODE 
+			 * ***/
+		case R.id.button_control:
+			if (auto_control_mode == false) {
+				ctrl_cmd = (ctrlcmds.ENTER_AUTO_NAV_MODE);
+				btn_control_mode.setText(R.string.button_realcontrol);
+				auto_control_mode = true;
+			} else {
+				ctrl_cmd = (ctrlcmds.ENTER_REAL_CONTROL_MODE);
+				btn_control_mode.setText(R.string.button_autocontrol);
+				auto_control_mode = false;
+			}
+			break;
+
+		default:
+			return;
+		}
+
+		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
+	}
+
+	/* 尝试获取远程图片 */
+	public boolean get_remote_image(String url_addr) {
+		boolean flag = false;
+
+		String m_video_addr = CAR_VIDEO_ADDR;
+		HttpURLConnection m_video_conn = null;
+		InputStream m_InputStream = null;
+		HttpGet httpRequest;
+		HttpClient httpclient = null;
+		HttpResponse httpResponse;
+
+		try {
+			m_video_addr = url_addr;
+			Log.d(TAG, "start get url");
+			httpRequest = new HttpGet(m_video_addr);
+
+			Log.d(TAG, "open connection");
+			httpclient = new DefaultHttpClient();
+
+			Log.d(TAG, "begin connect");
+			httpResponse = httpclient.execute(httpRequest);
+			Log.d(TAG, "get InputStream");
+			if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+				Log.d(TAG, "decodeStream");
+				m_InputStream = httpResponse.getEntity().getContent();
+				/* 从获取的流中构建出BMP图像 */
+				img_camera_bmp = BitmapFactory.decodeStream(m_InputStream);
+			}
+			Log.d(TAG, "decodeStream end");
+
+			flag = true;
+		} catch (Exception e) {
+			Log.e(TAG, "Error In Get Image Msg:" + e.getMessage());
+			flag = false;
+		} finally {
+			if (m_video_conn != null) {
+				m_video_conn.disconnect();
+			}
+			if ((httpclient != null)
+					&& (httpclient.getConnectionManager() != null)) {
+				/* 及时关闭httpclient释放资源 */
+				httpclient.getConnectionManager().shutdown(); 
+			}
+		}
+
+		return flag;
+	}
+
+	/* 很重要的函数
+	 * 调用tcp_ctrl类中的函数来发送tcp消息 */
+	private void post_tcp_msg(short ctrl_prefix, short ctrl_cmd, byte[] msg) {
+		ctrl_frame mCtrl_frame = new ctrl_frame(ctrl_prefix, ctrl_cmd, msg);
+		byte[] tcp_msg = new byte[4 + mCtrl_frame.datalength];
+		mCtrl_frame.encode_frametobytes(tcp_msg);
+		tcp_ctrl_obj.mTcp_ctrl_client.post_msg(tcp_msg);
+		if (D) {
+			Log.d(TAG, "The Sent TCP Message is As Follows:");
+			mCtrl_frame.display_ctrl_frame();
+		}
+	}
+	
+	/* 显示Toast 消息 */
+	private void disp_toast(String msg) {
+		Toast.makeText(mContext, msg, Toast.LENGTH_SHORT).show();
+	}
+
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		switch (requestCode) {
+		case REQ_SYSTEM_SETTINGS:
+			systemsettingchange(resultCode, data);
+			break;
+
+		default:
+			break;
+		}
+		super.onActivityResult(requestCode, resultCode, data);
+	}
+
+	private boolean systemsettingchange(int resultCode, Intent data) {
+		boolean ifSucess = true;
+
+		if (resultCode == RESULT_OK) {
+
+		} else {
+			Log.i(TAG, "None settings change");
+		}
+		return ifSucess;
+	}
+
+		/* NO USE */
+	private OnSharedPreferenceChangeListener sys_set_chg_listener = new OnSharedPreferenceChangeListener() {
+
+		@Override
+		public void onSharedPreferenceChanged(
+				SharedPreferences sharedPreferences, String key) {
+			if (key == getResources().getString(R.string.videoaddr1)) {
+				video_addr[0] = preferences.getString(key, CAR_VIDEO_ADDR);
+			} else if (key == getResources().getString(R.string.videoaddr2)) {
+				video_addr[1] = preferences.getString(key, ARM_VIDEO_ADDR);
+			} else if (key == getResources().getString(R.string.videoaddr3)) {
+				video_addr[2] = preferences.getString(key, OPENCV_VIDEO_ADDR);
+			} else if ((key == getResources().getString(R.string.distipaddr))
+					|| (key == getResources().getString(R.string.disttcpport))) {
+				dist_tcp_addr = preferences.getString(
+						getResources().getString(R.string.distipaddr),
+						DIST_TCPIPADDR);
+				dist_tcp_port = Integer.parseInt((preferences.getString(
+						getResources().getString(R.string.disttcpport),
+						String.valueOf(DIST_TCPPORT))));
+				tcp_ctrl_obj.mTcp_ctrl_client.tcpreconnect(dist_tcp_addr,
+						dist_tcp_port);
+			}
+		}
+	};
+
+
+
+	/**************USER LOG FUNCTIONS DEFINITION START**************/
+	
 	/* 记录程序每一个阶段的时间以及用户自定义的LOG消息
 	 * Tag 表示用户自定义的LOG消息 */
 	public void log_pass_time(String Tag) {
@@ -550,306 +1359,8 @@ public class WifiRobotActivity extends Activity {
 			}
 		}
 	}
-
-
-	/* 创建一个按下Menu键弹出的Menu选择框 
-	 * menu 位于res/menu/menu.xml */
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		MenuInflater inflater = getMenuInflater();
-		inflater.inflate(R.menu.menu, menu);
-		return true;
-	}
-
-	/* 更新 */
-	public void update_preference() {
-		int temp;
-		try {
-			video_addr[0] = preferences.getString(
-					getResources().getString(R.string.videoaddr1),
-					CAR_VIDEO_ADDR);
-			video_addr[1] = preferences.getString(
-					getResources().getString(R.string.videoaddr2),
-					ARM_VIDEO_ADDR);
-			video_addr[2] = preferences.getString(
-					getResources().getString(R.string.videoaddr3),
-					OPENCV_VIDEO_ADDR);
-			dist_tcp_addr = preferences.getString(
-					getResources().getString(R.string.distipaddr),
-					DIST_TCPIPADDR);
-			/* NOTICE 这里需要注意下
-			 * 需要尝试读取TCP端口号
-			 * 由于暂时我也不清楚如何创建一个只能输入数字的文本框
-			 * 所以只能在这里判断一下用户输入的PORT号是否为数字
-			 * 不是数字的话就强制将文本框内容改为默认的PORT */
-			try {
-				temp = Integer.parseInt((preferences.getString(getResources()
-						.getString(R.string.disttcpport), String
-						.valueOf(DIST_TCPPORT))));
-				dist_tcp_port = temp;
-			} catch (Exception e) {
-				/* 强制将preference中的错误输入恢复为默认 */
-				SharedPreferences.Editor editor = preferences.edit();
-				editor.putString(
-						getResources().getString(R.string.disttcpport),
-						String.valueOf(dist_tcp_port));
-				editor.commit();
-			}
-		} catch (Exception e) {
-			Log.d(TAG, e.toString());
-		}
-	}
-
-	@Override
-	public boolean onOptionsItemSelected(MenuItem item) {
-		int ItemId; 
-		
-		/* 获取选中的Menu菜单的ID号 */
-		ItemId = item.getItemId() ;
-		
-		switch (ItemId){
-		case R.id.Settings:
-			/* 跳转到对应的preference类 */
-			startActivityForResult(new Intent(this, Preferences.class),
-					REQ_SYSTEM_SETTINGS);
-			break;
-		default:
-			break;
-		}
-		return true;
-	}
-
-	@Override
-	public boolean onKeyDown(int keyCode, KeyEvent event) {
-		if (keyCode == KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0) {
-			/* 按下的如果是BACK，同时没有重复 
-			 * 程序强制退出
-			 * TODO 缺乏资源释放? */
-			Log.d(TAG, "Program Exit!");
-			System.exit(0);
-		}
-		return super.onKeyDown(keyCode, event);
-	}
-
-	/* 方向以及速度控制摇杆的Listener定义实现 */
-	private JoystickMovedListener joystickctrl_listener = new JoystickMovedListener() {
-		@Override
-		public void OnMoved(int pan, int tilt) {
-			int operate_x = 0;
-			int operate_y = 0;
-
-			operate_x = pan;
-			operate_y = -tilt;
-			calc_speed_and_angle(operate_x, operate_y);
-			txtAngle.setText(Integer.toString(operate_angle));
-			txtSpeed.setText(Integer.toString(operate_speed));
-			checkSendOperateCarMsg();
-			/* 进程主动让出控制权，
-			 * 这样的话,在操作摇杆时还是可以显示动态图像的
-			 * 虽然效果不好 */
-			Thread.yield(); 
-		}
-
-		@Override
-		public void OnReleased() {
-			txtAngle.setText("released");
-			txtSpeed.setText("released");
-			Thread.yield();
-		}
-
-		@Override
-		public void OnReturnedToCenter() {
-			txtAngle.setText("stopped");
-			txtSpeed.setText("stopped");
-			operate_angle = 0;
-			operate_speed = 0;
-			checkSendOperateCarMsg();
-			Thread.yield();
-		};
-	};
-
-	/* 机械臂控制的摇杆的listener实现 */
-	private JoystickMovedListener joystickarm_listener = new JoystickMovedListener() {
-		@Override
-		public void OnMoved(int pan, int tilt) {
-			int operate_x = 0;
-			int operate_y = 0;
-
-			operate_x = pan;
-			operate_y = -tilt;
-			calc_arm_xy(operate_x, operate_y);
-
-			checkSendOperateArmMsg();
-			/* 进程主动让出控制权，
-			 * 这样的话,在操作摇杆时还是可以显示动态图像的
-			 * 虽然效果不好 */
-			Thread.yield(); 
-		}
-
-		@Override
-		public void OnReleased() {
-			Thread.yield();
-		}
-
-		@Override
-		public void OnReturnedToCenter() {
-			arm_x_offset = 0;
-			arm_y_offset = 0;
-			checkSendOperateArmMsg();
-			Thread.yield();
-		};
-	};
-
-	/* 测试是否角度和速度没有改变 并发送控制小车命令 */
-	private void checkSendOperateCarMsg() {
-		/* 检查当前的角度或者速度是否改变 */
-		if (!((operate_angle == operate_angle_last) && (operate_speed == operate_speed_last))) {
-			/* 当前socket可用才进行数据发送 */
-			if ((tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK())) { 
-				postOperateCarMessage(operate_angle, operate_speed);
-			}
-			operate_angle_last = operate_angle;
-			operate_speed_last = operate_speed;
-		}
-	}
-
-	/* 发送获取角度控制和速度控制的命令 */
-	private void postOperateCarMessage(int angle, int speed) {
-		short ctrl_cmd;
-		short ctrl_prefix;
-		byte[] msg = new byte[4];
-
-		/* 准备待发送的TCP消息数据 */
-		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
-				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
-				ctrl_prefixs.withoutack);
-		ctrl_cmd = ctrlcmds.OPERATE_CAR;
-		msg[0] = (byte) (angle & 0xff);
-		msg[1] = (byte) ((angle >> 8) & 0xff);
-		msg[2] = (byte) (speed & 0xff);
-		msg[3] = (byte) ((speed >> 8) & 0xff);
-
-		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
-	}
-
-	/* 通过当前坐标计算角度和速度信息 */
-	private void calc_speed_and_angle(int operate_x, int operate_y) {
-		operate_speed = (int) Math.sqrt((operate_x * operate_x)
-				+ (operate_y * operate_y));
-
-		if (operate_y < 0) {
-			operate_speed = -operate_speed;
-		}
-
-		if (operate_x == 0) {
-			if (operate_y == 0) {
-				operate_angle = 0;
-			} else if (operate_y > 0) {
-				operate_angle = 90;
-			} else {
-				operate_angle = -90;
-			}
-		} else if (operate_y == 0) {
-			if (operate_x == 0) {
-				operate_angle = 0;
-			} else if (operate_x > 0) {
-				operate_angle = 0;
-			} else {
-				operate_angle = 180;
-			}
-		} else {
-			operate_angle = (int) ((Math.atan2(operate_y, operate_x) / Math.PI) * 180);
-		}
-
-		if (operate_speed == 0) {
-			operate_angle = 0;
-		} else if (operate_speed > 0) {
-			operate_angle = 90 - operate_angle;
-		} else {
-			operate_angle = operate_angle + 90;
-		}
-
-		if (operate_speed > MAX_SPEED_UNIT) {
-			operate_speed = MAX_SPEED_UNIT;
-		} else if (operate_speed < -MAX_SPEED_UNIT) {
-			operate_speed = -MAX_SPEED_UNIT;
-		}
-		operate_speed = operate_speed * SPEED_SCALE;
-
-	}
-
-	/* 计算机械臂的X,Y偏移值 */
-	private void calc_arm_xy(int operate_x, int operate_y) {
-		if (operate_x > MAX_ARM_UNIT) {
-			operate_x = MAX_ARM_UNIT;
-		} else if (operate_x < -MAX_ARM_UNIT) {
-			operate_x = -MAX_ARM_UNIT;
-		}
-
-		if (operate_y > MAX_ARM_UNIT) {
-			operate_y = MAX_ARM_UNIT;
-		} else if (operate_y < -MAX_ARM_UNIT) {
-			operate_y = -MAX_ARM_UNIT;
-		}
-
-		arm_x_offset = operate_x * ARM_X_SCALE;
-		arm_y_offset = operate_y * ARM_Y_SCALE;
-	}
-
-	/* 测试机械臂的XY是否没有改变 并发送控制机械臂命令 */
-	private void checkSendOperateArmMsg() {
-		if (!((arm_x_offset == arm_x_offset_last) && (arm_y_offset == arm_y_offset_last))) {
-			if ((tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK())) {
-				/*
-				 * 当前socket可用才进行数据发送
-				 */
-				postOperateArmMessage(arm_x_offset, arm_y_offset);
-			}
-			arm_x_offset_last = arm_x_offset;
-			arm_y_offset_last = arm_y_offset;
-		}
-	}
-
-	/* 发送获取机械臂XY控制的命令 */
-	private void postOperateArmMessage(int x, int y) {
-		short ctrl_cmd;
-		short ctrl_prefix;
-		byte[] msg = new byte[4];
-
-		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
-				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
-				ctrl_prefixs.withoutack);
-		ctrl_cmd = ctrlcmds.OPERATE_ARM;
-		msg[0] = (byte) (x & 0xff);
-		msg[1] = (byte) ((x >> 8) & 0xff);
-		msg[2] = (byte) (y & 0xff);
-		msg[3] = (byte) ((y >> 8) & 0xff);
-
-		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
-	}
-
-	/* 用于tcp_ctrl类的handler 
-	 * 主要是有些需要更新UI之类的操作 */
-	private final Handler mHandler_UpdateUI = new Handler() {
-		@Override
-		public void handleMessage(Message msg) {
-			switch (msg.what) {
-			case MSG_DISPLAY_TOAST:
-				disp_toast((String) msg.obj);
-				break;
-			case (MSG_FIX_PREFERENCE + FIX_IP_PREFERENCE):
-				String ip = (String) msg.obj;
-				SharedPreferences.Editor editor = preferences.edit();
-				editor.putString(getResources().getString(R.string.distipaddr),
-						ip);
-				editor.commit();
-				break;
-			default:
-				break;
-			}
-
-		}
-	};
+	
+	/**************USER LOG FUNCTIONS DEFINITION END**************/
 
 	/* 处理DrawVideo类的Handler
 	 * UI的更新 */
@@ -877,483 +1388,7 @@ public class WifiRobotActivity extends Activity {
 			}
 		}
 	};
-
-	/* 根据不同的进度框ID创建进度框 */
-	@Override
-	protected Dialog onCreateDialog(int id) {
-		switch (id) {
-		case CONNECT_DIALOG_KEY:
-			/* 在当前的Activity下创建一个进度框 */
-			mDialog_Connect = new ProgressDialog(WifiRobotActivity.this);
-			/* 设置进度框上显示的消息 */
-			mDialog_Connect.setMessage("Trying to connect to TCP server...");
-			/* 设置进度框为不可取消的
-			 * 这样设置的目的由于对话框运行时后台有进程在运行
-			 * 如果取消的话,后台的进程没有结束,会导致一些无法预料的问题 */
-			mDialog_Connect.setCancelable(false);
-			return mDialog_Connect;
-		case IMGCAP_DIALOG_KEY:
-			mDialog_ImageCap = new ProgressDialog(WifiRobotActivity.this);
-			mDialog_ImageCap.setMessage("Trying to obtain image ...");
-			mDialog_ImageCap.setCancelable(false);
-			return mDialog_ImageCap;
-		case VIDEOCAP_DIALOG_KEY:
-			mDialog_VideoCap = new ProgressDialog(WifiRobotActivity.this);
-			mDialog_VideoCap.setMessage("Trying to obtain video ...");
-			mDialog_VideoCap.setCancelable(false);
-			return mDialog_VideoCap;
-		default:
-			return null;
-		}
-	}
-
-	/* 建立TCP连接按钮对应的Listener  */
-	private OnClickListener connect_listener = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			/* 更新对应的preference中的内容
-			 * 主要是各种视频地址
-			 * TCP服务器的IP以及PORT */
-			update_preference();
-			showDialog(CONNECT_DIALOG_KEY);
-		}
-	};
-
-	@Override
-	protected void onPrepareDialog(int id, Dialog dialog) {
-		switch (id) {
-		case CONNECT_DIALOG_KEY:
-			ConnectProgressThread mConnectProgressThread = new ConnectProgressThread(
-					progress_handler);
-			mConnectProgressThread.start();
-			break;
-		case IMGCAP_DIALOG_KEY:
-			ImageCapProgressThread mCapProgressThread = new ImageCapProgressThread(
-					progress_handler, IMGCAP_DIALOG_KEY);
-			mCapProgressThread.start();
-			break;
-		case VIDEOCAP_DIALOG_KEY:
-			ImageCapProgressThread mCapProgressThread2 = new ImageCapProgressThread(
-					progress_handler, VIDEOCAP_DIALOG_KEY);
-			mCapProgressThread2.start();
-			break;
-		default:
-			break;
-		}
-
-	}
-
-	/* 处理各种进度框的消息 */
-	final Handler progress_handler = new Handler() {
-		@Override
-		public void handleMessage(Message msg) {
-			if (msg.what <= VIDEOCAP_DIALOG_KEY) {
-				dismissDialog(msg.what);
-			}
-
-			switch (msg.what) {
-			case CONNECT_DIALOG_KEY:
-				if (msg.obj != null) {
-					disp_toast((String) msg.obj);
-				}
-				if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()) {
-					txtTCPState.setText(R.string.tcpstate_online);
-				} else {
-					txtTCPState.setText(R.string.tcpstate_offline);
-				}
-				break;
-			case IMGCAP_DIALOG_KEY:
-				image_ready_flag = (Boolean) (msg.obj);
-				if (image_ready_flag == true) {
-					img_camera.setImageBitmap(img_camera_bmp);
-				} else {
-					disp_toast("Get remote image failed,please check the video address!");
-				}
-				break;
-			case VIDEOCAP_DIALOG_KEY:
-				video_ready_flag = (Boolean) (msg.obj);
-				if (video_ready_flag == true) {
-					img_camera.setImageBitmap(img_camera_bmp);
-					/* 检查到视频数据正常 
-					 * 就可以创建一个用于显示视频数据的类*/
-					m_DrawVideo = new DrawVideo(cur_video_addr,
-							mHandler_video_process);
-					m_DrawVideo.start();
-					btn_video.setText(R.string.button_video_stop);
-					video_flag = true;
-				} else {
-					disp_toast("Get remote video failed,please check the video address!");
-				}
-				break;
-			case MSG_DISPLAY_TOAST:
-				break;
-
-			default:
-				break;
-			}
-		}
-	};
-
-	/* 检查TCP连接是否已经连接或者
-	 * 连接的IP和Port已经更新 就需要重新连接  */
-	private class ConnectProgressThread extends Thread {
-		Handler mHandler;
-		String msg = null;
-
-		ConnectProgressThread(Handler h) {
-			mHandler = h;
-		}
-
-		@Override
-		public void run() {
-			if (tcp_ctrl_obj.mTcp_ctrl_client.updateIPandPort(dist_tcp_addr,
-					dist_tcp_port)
-					|| (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK() == false)) {
-				/*
-				 * 检查是否有如下情况:
-				 * 1. TCP连接的IP或者端口有更改
-				 * 2. TCP连接没有建立
-				 */
-				/* 强制建立TCP连接 */
-				tcp_ctrl_obj.mTcp_ctrl_client.tcp_connect(true);
-			} else {
-				msg = new String("Already Connected to TCP Server @"
-						+ dist_tcp_addr + ":" + dist_tcp_port);
-			}
-			mHandler.obtainMessage(CONNECT_DIALOG_KEY, msg).sendToTarget();
-		}
-	}
-
-	/* 检查是否图像或者视频数据准备好了 */
-	private class ImageCapProgressThread extends Thread {
-		Handler mHandler;
-		boolean image_ok = false;
-		int dialog_key;
-
-		ImageCapProgressThread(Handler h, int id) {
-			mHandler = h;
-			dialog_key = id;
-		}
-
-		@Override
-		public void run() {
-			image_ok = get_remote_image(cur_video_addr);
-			mHandler.obtainMessage(dialog_key, image_ok).sendToTarget();
-		}
-	}
-
-	/* 视频源切换按钮的listener */
-	private OnClickListener video_src_acquire_listener = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			process_video_src_select(v.getId());
-		}
-	};
-
-	/* 获取视频按钮的listener */
-	private OnClickListener video_acquire_listener = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			post_ctrl_btnclk_msg(v.getId());
-		}
-	};
-
-	/* 其他控制按钮的Listener */
-	private OnClickListener ctrl_btn_listener = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			/* 根据小车控制按钮的id来处理事件 */
-			post_ctrl_btnclk_msg(v.getId());
-		}
-	};
-
-	/* 激光控制按钮的Listener */
-	private OnClickListener laser_ctrl_listener = new OnClickListener() {
-		@Override
-		public void onClick(View v) {
-			/* 发送激光控制命令 */
-			postLaserCtrlMsg(v.getId());
-		}
-	};
-
-	/* 发送激光控制的TCP消息 */
-	private void postLaserCtrlMsg(int btn_id) {
-		short ctrl_cmd;
-		short ctrl_prefix;
-		byte[] msg = new byte[1];
-		Button btn;
-
-		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
-				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
-				ctrl_prefixs.withoutack);
-		ctrl_cmd = ctrlcmds.LASER_CTRL;
-
-		btn = (Button) findViewById(btn_id);
-
-		if (laser_ctrl == LASER_OFF) {
-			btn.setText(R.string.button_laser_off);
-			laser_ctrl = LASER_ON;
-		} else {
-			btn.setText(R.string.button_laser_on);
-			laser_ctrl = LASER_OFF;
-		}
-
-		msg[0] = (byte) (laser_ctrl & 0xff);
-
-		Log.d(TAG, "Switch Laser Ctrl " + " to  " + laser_ctrl);
-		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
-	}
-
-	/* NO USE */
-	private OnSharedPreferenceChangeListener sys_set_chg_listener = new OnSharedPreferenceChangeListener() {
-
-		@Override
-		public void onSharedPreferenceChanged(
-				SharedPreferences sharedPreferences, String key) {
-			if (key == getResources().getString(R.string.videoaddr1)) {
-				video_addr[0] = preferences.getString(key, CAR_VIDEO_ADDR);
-			} else if (key == getResources().getString(R.string.videoaddr2)) {
-				video_addr[1] = preferences.getString(key, ARM_VIDEO_ADDR);
-			} else if (key == getResources().getString(R.string.videoaddr3)) {
-				video_addr[2] = preferences.getString(key, OPENCV_VIDEO_ADDR);
-			} else if ((key == getResources().getString(R.string.distipaddr))
-					|| (key == getResources().getString(R.string.disttcpport))) {
-				dist_tcp_addr = preferences.getString(
-						getResources().getString(R.string.distipaddr),
-						DIST_TCPIPADDR);
-				dist_tcp_port = Integer.parseInt((preferences.getString(
-						getResources().getString(R.string.disttcpport),
-						String.valueOf(DIST_TCPPORT))));
-				tcp_ctrl_obj.mTcp_ctrl_client.tcpreconnect(dist_tcp_addr,
-						dist_tcp_port);
-			}
-		}
-	};
-
-	/* 检查是否可以发送切换视频模式 */
-	private void checkSendSwitchVideoModeMsg(int videomode) {
-		if (tcp_ctrl_obj.mTcp_ctrl_client.isSocketOK()) { 
-			/* 当前socket可用才进行数据发送 */
-			postSwitchVideoModeMsg(videomode);
-		}
-	}
-
-	/* 发送切换视频模式的指令 */
-	private void postSwitchVideoModeMsg(int videomode) {
-		short ctrl_cmd;
-		short ctrl_prefix;
-		byte[] msg = new byte[1];
-
-		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
-				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
-				ctrl_prefixs.withoutack);
-		ctrl_cmd = ctrlcmds.ADJUST_VIDEO_MODE;
-		msg[0] = (byte) (videomode & 0xff);
-
-		Log.d(TAG, "Switch Video Mode " + " to  " + videomode);
-		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
-	}
-
-	/* 处理选择视频源的消息 */
-	private void process_video_src_select(int btn_id) {
-		Button btn;
-		String toast_str;
-
-		switch (btn_id) {
-		case R.id.button_video_src:
-			update_preference();
-			btn = (Button) findViewById(R.id.button_video_src);
-			video_source_sel += 1;
-			if (video_source_sel >= MAX_VIDEO_SRC_CNT) {
-				video_source_sel = 0;
-			}
-			/* 选择正确视频源 */
-			cur_video_addr = video_addr[video_source_sel]; 
-			toast_str = new String(" Address : " + cur_video_addr);
-			switch (video_source_sel) {
-			case CAR_VIDEO_SRC:
-				btn.setText(R.string.button_video_src_car);
-				toast_str = "Switch to car video ," + toast_str;
-				break;
-			case ARM_VIDEO_SRC:
-				btn.setText(R.string.button_video_src_arm);
-				toast_str = "Switch to arm video ," + toast_str;
-				break;
-			case OPENCV_VIDEO_SRC:
-				btn.setText(R.string.button_video_src_opencv);
-				toast_str = "Switch to openCV video ," + toast_str;
-				break;
-			}
-			/* 测试并发送切换的视频模式 */
-			checkSendSwitchVideoModeMsg(video_source_sel);
-
-			// disp_toast(toast_str);
-
-			/*
-			 * 如果当前的正在采集视频数据 就需要进行切换, 并且先要将之前的视频掐掉
-			 */
-			if (video_flag == true) {
-				/* 先退出之前的视频源 */
-				if (m_DrawVideo != null) {
-					m_DrawVideo.exit_thread();
-				}
-				btn_video.setText(R.string.button_video_start);
-				img_camera.setImageResource(R.drawable.zynq_logo);
-				video_flag = false;
-				/* 切换为新的视频源 */
-				showDialog(VIDEOCAP_DIALOG_KEY);
-			}
-
-			break;
-		default:
-			return;
-		}
-
-	}
-
-	/* 处理对小车控制按钮的消息 */
-	private void post_ctrl_btnclk_msg(int btn_id) {
-		short ctrl_cmd = 0;
-		short ctrl_prefix = 0;
-		byte[] msg = null;
-		Button btn;
-		
-		ctrl_prefix = ctrl_prefixs.encode_ctrlprefix(
-				ctrl_prefixs.write_request, ctrl_prefixs.less_data_request,
-				ctrl_prefixs.withoutack);
-		switch (btn_id) {
-		case R.id.button_image:
-			update_preference();
-			showDialog(IMGCAP_DIALOG_KEY);
-			return; /* no break, direct return */
-
-		case R.id.button_video:
-			btn = (Button) findViewById(R.id.button_video);
-			update_preference();
-			if (video_flag == false) {
-				/* 选择正确的视频源地址 */
-				cur_video_addr = video_addr[video_source_sel]; 
-				showDialog(VIDEOCAP_DIALOG_KEY);
-			} else {
-				if (m_DrawVideo != null) {
-					m_DrawVideo.exit_thread();
-					// m_DrawVideo.stop();
-				}
-				btn.setText(R.string.button_video_start);
-				img_camera.setImageResource(R.drawable.zynq_logo);
-				video_flag = false;
-			}
-			return; /* no break, direct return */
-
-		case R.id.button_control:
-			if (auto_control_mode == false) {
-				ctrl_cmd = (ctrlcmds.ENTER_AUTO_NAV_MODE);
-				btn_control_mode.setText(R.string.button_realcontrol);
-				auto_control_mode = true;
-			} else {
-				ctrl_cmd = (ctrlcmds.ENTER_REAL_CONTROL_MODE);
-				btn_control_mode.setText(R.string.button_autocontrol);
-				auto_control_mode = false;
-			}
-			break;
-
-		default:
-			return;
-		}
-
-		post_tcp_msg(ctrl_prefix, ctrl_cmd, msg);
-	}
-
-	/* 尝试获取远程图片 */
-	public boolean get_remote_image(String url_addr) {
-		boolean flag = false;
-
-		String m_video_addr = CAR_VIDEO_ADDR;
-		HttpURLConnection m_video_conn = null;
-		InputStream m_InputStream = null;
-		HttpGet httpRequest;
-		HttpClient httpclient = null;
-		HttpResponse httpResponse;
-
-		try {
-			m_video_addr = url_addr;
-			Log.d(TAG, "start get url");
-			httpRequest = new HttpGet(m_video_addr);
-
-			Log.d(TAG, "open connection");
-			httpclient = new DefaultHttpClient();
-
-			Log.d(TAG, "begin connect");
-			httpResponse = httpclient.execute(httpRequest);
-			Log.d(TAG, "get InputStream");
-			if (httpResponse.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-				Log.d(TAG, "decodeStream");
-				m_InputStream = httpResponse.getEntity().getContent();
-				/* 从获取的流中构建出BMP图像 */
-				img_camera_bmp = BitmapFactory.decodeStream(m_InputStream);
-			}
-			Log.d(TAG, "decodeStream end");
-
-			flag = true;
-		} catch (Exception e) {
-			Log.e(TAG, "Error In Get Image Msg:" + e.getMessage());
-			flag = false;
-		} finally {
-			if (m_video_conn != null) {
-				m_video_conn.disconnect();
-			}
-			if ((httpclient != null)
-					&& (httpclient.getConnectionManager() != null)) {
-				/* 及时关闭httpclient释放资源 */
-				httpclient.getConnectionManager().shutdown(); 
-			}
-		}
-
-		return flag;
-	}
-
-	/* 很重要的函数
-	 * 调用tcp_ctrl类中的函数来发送tcp消息 */
-	private void post_tcp_msg(short ctrl_prefix, short ctrl_cmd, byte[] msg) {
-		ctrl_frame mCtrl_frame = new ctrl_frame(ctrl_prefix, ctrl_cmd, msg);
-		byte[] tcp_msg = new byte[4 + mCtrl_frame.datalength];
-		mCtrl_frame.encode_frametobytes(tcp_msg);
-		tcp_ctrl_obj.mTcp_ctrl_client.post_msg(tcp_msg);
-		if (D) {
-			Log.d(TAG, "The Sent TCP Message is As Follows:");
-			mCtrl_frame.display_ctrl_frame();
-		}
-	}
-
-	@Override
-	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		switch (requestCode) {
-		case REQ_SYSTEM_SETTINGS:
-			systemsettingchange(resultCode, data);
-			break;
-
-		default:
-			break;
-		}
-		super.onActivityResult(requestCode, resultCode, data);
-	}
-
-	private boolean systemsettingchange(int resultCode, Intent data) {
-		boolean ifSucess = true;
-
-		if (resultCode == RESULT_OK) {
-
-		} else {
-			Log.i(TAG, "None settings change");
-		}
-		return ifSucess;
-	}
-
-	/* 显示Toast 消息 */
-	private void disp_toast(String msg) {
-		Toast.makeText(mContext, msg, Toast.LENGTH_SHORT).show();
-	}
-
+	
 	/* 处理视频显示的子类
 	 * 主要实现原理是:
 	 * 1s内获取至少24帧图像
